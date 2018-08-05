@@ -32,7 +32,7 @@ def resnet_v1_50(inputs,
         scope=scope)
 
 
-def build_resnet50_v1(img_input, l2_weight_decay=0.01, is_training=True):
+def build_resnet50_v1(img_input, l2_weight_decay=0.01, is_training=True, prefix=None):
     """
         Builds resnet50_v1 model from slim, with strides reversed.
 
@@ -42,8 +42,8 @@ def build_resnet50_v1(img_input, l2_weight_decay=0.01, is_training=True):
     with slim.arg_scope(resnet_v1.resnet_arg_scope(weight_decay=l2_weight_decay)):
         block4, endpoints = resnet_v1_50(img_input, is_training=is_training, global_pool=False)
 
-    block3 = endpoints['resnet_v1_50/block3']
-    block2 = endpoints['resnet_v1_50/block2']
-    block1 = endpoints['resnet_v1_50/block1']
+    block3 = endpoints[f'{prefix}resnet_v1_50/block3']
+    block2 = endpoints[f'{prefix}resnet_v1_50/block2']
+    block1 = endpoints[f'{prefix}resnet_v1_50/block1']
 
     return block1, block2, block3, block4

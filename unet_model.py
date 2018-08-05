@@ -102,7 +102,8 @@ class ResnetUnet(model.BaseModel):
         with tf.variable_scope('encode'):
             ds_layers = encoder.build_resnet50_v1(net,
                                                   l2_weight_decay=self.config_dict['ext']['encoder_l2_decay'],
-                                                  is_training=training)
+                                                  is_training=training,
+                                                  prefix=f'{self.name}/encode/')
 
         with tf.variable_scope('decode'):
             with tf.variable_scope('process_ds'):

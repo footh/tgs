@@ -7,7 +7,7 @@ def iou(predictions, labels, pred_thresh=0.5):
         probability is considered a positive value. Returns a bs x 1 tensor of IoU values
 
         In the case that the labels AND predictions have no positive values, the 'union' will be 0. The IoU will result
-        in a 1.0 in that case since the prediction accurately predicted there were no labels.
+        in a 1.0 since the prediction accurately predicted there were no labels.
     """
     preds = tf.greater_equal(predictions, pred_thresh)
     labels_bool = tf.cast(labels, tf.bool)
@@ -27,9 +27,9 @@ def iou(predictions, labels, pred_thresh=0.5):
     return ious
 
 
-def map_at_iou_thresholds(predictions, labels,
-                          thresholds=(0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95),
-                          pred_thresh=0.5):
+def map_iou(predictions, labels,
+            thresholds=(0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95),
+            pred_thresh=0.5):
     """
         Mean average precision at iou thresholds. Calculates precision value at each IoU threshold value and averages
         both across thresholds and across the batch. Returns scalar result.
@@ -51,13 +51,13 @@ def map_at_iou_thresholds(predictions, labels,
     return result
 
 
-def map_at_iou_thresholds_metric(predictions, labels,
-                                 thresholds=(0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95),
-                                 pred_thresh=0.5):
+def map_iou_metric(predictions, labels,
+                   thresholds=(0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95),
+                   pred_thresh=0.5):
     """
     Returns a value operation and update operation for calculating the MAP at IoU thresholds in the style of a
     tensorflow metric.
     """
     with tf.variable_scope('metrics/map_iou'):
-        value_op = map_at_iou_thresholds(predictions, labels, thresholds=thresholds, pred_thresh=pred_thresh)
+        value_op = map_iou(predictions, labels, thresholds=thresholds, pred_thresh=pred_thresh)
         return tf.metrics.mean(value_op)

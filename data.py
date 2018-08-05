@@ -1,10 +1,12 @@
 import tensorflow as tf
 from random import shuffle
 
+VGG_RGB_MEANS = [123.68, 116.78, 103.94]
+
 
 class DataInput(object):
 
-    def __init__(self, config_dict, batch_size=1024, num_epochs=999999, label_cnt=3862):
+    def __init__(self, config_dict, batch_size=1024, num_epochs=999999, label_cnt=1, preprocess=True, augment=False):
 
         assert config_dict is not None, "Config dictionary cannot be empty"
         # TODO: validate config entries?
@@ -13,6 +15,8 @@ class DataInput(object):
         self.batch_size = batch_size
         self.num_epochs = num_epochs
         self.label_cnt = label_cnt
+        self.preprocess = preprocess
+        self.augment = augment
 
     @staticmethod
     def get(class_name):
@@ -59,6 +63,7 @@ class ImageDataInput(DataInput):
         dataset = self.build_dataset(mode)
 
         # image_dim = self.config_dict['ext']['image_dim']
+        resize_dim = self.config_dict['ext']['resize_dim']
 
         # Use `tf.parse_single_example()` to extract data from a `tf.Example`
         # protocol buffer, and perform any additional per-record preprocessing.
@@ -76,10 +81,18 @@ class ImageDataInput(DataInput):
             example = tf.parse_single_example(record, feature_map)
 
             img = tf.image.decode_png(example['img'])
+            img = tf.image.resize_images(img, (resize_dim, resize_dim),
+                                         method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+            if self.preprocess:
+                img = tf.subtract(tf.cast(img, tf.float32), VGG_RGB_MEANS)
 
             if mode != tf.estimator.ModeKeys.PREDICT:
                 mask = tf.image.decode_png(example['mask'])
+                mask = tf.image.resize_images(mask, (resize_dim, resize_dim),
+                                              method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
                 mask = tf.squeeze(mask, axis=-1)
+                if self.preprocess:
+                    mask = tf.divide(tf.cast(mask, tf.float32), 255.)
             else:
                 mask = tf.constant([])
 

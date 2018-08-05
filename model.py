@@ -118,9 +118,9 @@ class BaseModel(object):
             loss = loss + tf.losses.get_regularization_loss()
 
             if mode == tf.estimator.ModeKeys.EVAL:
-                map_iou_metric = metric.map_at_iou_thresholds_metric(predicted_probs, labels,
-                                                                     thresholds=params['map_iou_thresholds'],
-                                                                     pred_thresh=params['map_iou_predthresh'])
+                map_iou_metric = metric.map_iou_metric(predicted_probs, labels,
+                                                       thresholds=params['map_iou_thresholds'],
+                                                       pred_thresh=params['map_iou_predthresh'])
                 metrics = {'map_iou': map_iou_metric}
 
                 spec = tf.estimator.EstimatorSpec(mode,
@@ -153,9 +153,9 @@ class BaseModel(object):
                     learning_rate = tf.constant(lr)
                 tf.summary.scalar('learning_rate', learning_rate)
 
-                map_iou = metric.map_at_iou_thresholds(predicted_probs, labels,
-                                                       thresholds=params['map_iou_thresholds'],
-                                                       pred_thresh=params['map_iou_predthresh'])
+                map_iou = metric.map_iou(predicted_probs, labels,
+                                         thresholds=params['map_iou_thresholds'],
+                                         pred_thresh=params['map_iou_predthresh'])
                 tf.summary.scalar('map_iou', map_iou)
 
                 logging_hook = tf.train.LoggingTensorHook({'map_iou': map_iou, 'learning_rate': learning_rate},
