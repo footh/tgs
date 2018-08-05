@@ -1,0 +1,39 @@
+# Model parameters -----------------------------------
+model:
+  label_cnt: 1
+  class: 'ResnetUnet'
+  ext:
+    encoder_l2_decay: 0.001
+# Metric parameters ----------------------------------
+metric:
+  map_at_iou_thresholds:
+    thresholds: [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+    pred_thresh: 0.5
+# Data parameters ------------------------------------
+data:
+  class: 'ImageDataInput'
+  train_file_pattern: ['./yt8m/data/train/tfrecord/tgs[0-2][0-9]', './yt8m/data/train/tfrecord/tgs[3][0-5]']
+  valid_file_pattern: ['./yt8m/data/train/tfrecord/tgs[3][6-9]']
+  test_file_pattern: ['./yt8m/data/test/tfrecord/tgs*']
+  shuf_buf: 5000
+  parallel_calls: 4
+  ext:
+    resize_dim: 128
+# Base training parameters ---------------------------
+batch_size: 10
+train_steps: 1000
+valid_steps: 4
+learning_rate:
+  base: 0.002
+  cosine_decay:
+    steps: 2000
+    m_mul: 0.65
+    alpha: 0.01
+l2_weight_decay: 0.001
+l2_normalize:
+clip_grad_norm:
+ema_decay:
+checkpoint:
+  save_seconds: 999999
+  keep: 80
+  warm_start_path:

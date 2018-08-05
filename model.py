@@ -90,8 +90,8 @@ class BaseModel(object):
         Function used as input to an Estimator. Returns an EstimatorSpec configured based on mode
         """
         if 'l2_normalize' in params and params['l2_normalize']:
-            features['data'] = tf.nn.l2_normalize(features['data'], axis=-1)
-        tf.summary.histogram('model/inp', features['data'])
+            features['img'] = tf.nn.l2_normalize(features['img'], axis=-1)
+        tf.summary.histogram('model/inp', features['img'])
 
         regularizer = None
         if 'l2_weight_decay' in params and params['l2_weight_decay'] is not None:
@@ -111,16 +111,17 @@ class BaseModel(object):
         if mode == tf.estimator.ModeKeys.PREDICT:
             spec = tf.estimator.EstimatorSpec(mode, predictions=predictions)
         else:
-            with tf.variable_scope('%s/loss' % self.name):
+            with tf.variable_scope(f'{self.name}/loss'):
                 loss = self.loss_op(labels, logits)
 
             # Add regularization
             loss = loss + tf.losses.get_regularization_loss()
 
             if mode == tf.estimator.ModeKeys.EVAL:
-                # gap_mean_metric = metric.gap_mean_metric(predicted_probs, labels, k=params['top_k'])
-                # metrics = {'GAP_mean': gap_mean_metric}
-                metrics = None
+                map_iou_metric = metric.map_at_iou_thresholds_metric(predicted_probs, labels,
+                                                                     thresholds=params['map_iou_thresholds'],
+                                                                     pred_thresh=params['map_iou_predthresh'])
+                metrics = {'map_iou': map_iou_metric}
 
                 spec = tf.estimator.EstimatorSpec(mode,
                                                   predictions=predictions,
@@ -152,12 +153,13 @@ class BaseModel(object):
                     learning_rate = tf.constant(lr)
                 tf.summary.scalar('learning_rate', learning_rate)
 
-                # gap = metric.gap(predicted_probs, labels, k=params['top_k'])
-                # tf.summary.scalar('gap', gap)
+                map_iou = metric.map_at_iou_thresholds(predicted_probs, labels,
+                                                       thresholds=params['map_iou_thresholds'],
+                                                       pred_thresh=params['map_iou_predthresh'])
+                tf.summary.scalar('map_iou', map_iou)
 
-                # logging_hook = tf.train.LoggingTensorHook({"GAP": gap, 'learning_rate': learning_rate},
-                #                                           every_n_iter=100)
-                logging_hook = None
+                logging_hook = tf.train.LoggingTensorHook({'map_iou': map_iou, 'learning_rate': learning_rate},
+                                                          every_n_iter=100)
 
                 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
 
