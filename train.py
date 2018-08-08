@@ -3,6 +3,7 @@ from tgs import config
 from tgs import data
 from tgs import model as m
 import os
+import json
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -23,6 +24,26 @@ class TrainingSessionRunHook(tf.train.SessionRunHook):
         loss, global_step = run_values.results
         if (global_step + 1) % 2000 == 0:
             raise tf.errors.OutOfRangeError(None, None, "Test out of range")
+
+
+def warm_start(cfg):
+    settings = None
+    if cfg.get('checkpoint.warm_start.checkpoint_path') is not None:
+        warm_start_map = None
+        if cfg.get('checkpoint.warm_start.var_map') is not None:
+            with open(cfg.get('checkpoint.warm_start.var_map')) as f:
+                warm_start_map = json.load(f)
+
+        warm_start_var = None
+        if cfg.get('checkpoint.warm_start.var_init') is not None:
+            warm_start_var = cfg.get('checkpoint.warm_start.var_init')
+
+        tf.logging.info('Warm starting with: %s' % cfg.get('checkpoint.warm_start_path'))
+        settings = tf.estimator.WarmStartSettings(ckpt_to_initialize_from=cfg.get('checkpoint.warm_start.checkpoint_path'),
+                                                  vars_to_warm_start=warm_start_var,
+                                                  var_name_to_prev_var_name=warm_start_map)
+
+    return settings
 
 
 def main(_):
@@ -53,7 +74,8 @@ def main(_):
     run_config = tf.estimator.RunConfig(model_dir=FLAGS.model_dir,
                                         save_checkpoints_steps=None,
                                         save_checkpoints_secs=c.get('checkpoint.save_seconds'),
-                                        keep_checkpoint_max=c.get('checkpoint.keep'))
+                                        keep_checkpoint_max=c.get('checkpoint.keep'),
+                                        log_step_count_steps=100 if c.get('log_steps') is None else c.get('log_steps'))
 
     params = {'learning_rate': c.get('learning_rate.base'),
               'learning_rate.exponential_decay': c.get('learning_rate.exponential_decay'),
@@ -65,15 +87,10 @@ def main(_):
               'map_iou_thresholds': c.get('metric.map_iou.thresholds'),
               'map_iou_predthresh': c.get('metric.map_iou.pred_thresh')}
 
-    warm_start = None
-    if c.get('checkpoint.warm_start_path') is not None:
-        tf.logging.info('Warm starting with: %s' % c.get('checkpoint.warm_start_path'))
-        warm_start = tf.estimator.WarmStartSettings(ckpt_to_initialize_from=c.get('checkpoint.warm_start_path'))
-
     estimator = tf.estimator.Estimator(model_fn=model.model_fn,
                                        config=run_config,
                                        params=params,
-                                       warm_start_from=warm_start)
+                                       warm_start_from=warm_start(c))
 
     # tsrh = TrainingSessionRunHook(f"{model.name}/loss")
     train_spec = tf.estimator.TrainSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN),

@@ -6,7 +6,7 @@ VGG_RGB_MEANS = [123.68, 116.78, 103.94]
 
 class DataInput(object):
 
-    def __init__(self, config_dict, batch_size=1024, num_epochs=999999, label_cnt=1, preprocess=True, augment=False):
+    def __init__(self, config_dict, batch_size=1024, num_epochs=999999, label_cnt=1, preprocess=True, augment=True):
 
         assert config_dict is not None, "Config dictionary cannot be empty"
         # TODO: validate config entries?
@@ -55,6 +55,20 @@ class ImageDataInput(DataInput):
     """
     Reads TFRecords image Examples.
     """
+    @staticmethod
+    def augment_image(img, mask):
+
+        # Rotation
+        rot = tf.random_uniform([], maxval=4, dtype=tf.int32)
+        img = tf.image.rot90(img, k=rot)
+        mask = tf.image.rot90(mask, k=rot)
+
+        # Flipping
+        flip = tf.random_uniform([], maxval=2, dtype=tf.int32)
+        img = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_up_down(img), lambda: tf.identity(img))
+        mask = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_up_down(mask), lambda: tf.identity(mask))
+
+        return img, mask
 
     def input_fn(self, mode):
         """
@@ -83,18 +97,24 @@ class ImageDataInput(DataInput):
             img = tf.image.decode_png(example['img'])
             img = tf.image.resize_images(img, (resize_dim, resize_dim),
                                          method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
-            if self.preprocess:
-                img = tf.subtract(tf.cast(img, tf.float32), VGG_RGB_MEANS)
 
             if mode != tf.estimator.ModeKeys.PREDICT:
                 mask = tf.image.decode_png(example['mask'])
                 mask = tf.image.resize_images(mask, (resize_dim, resize_dim),
                                               method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
-                mask = tf.squeeze(mask, axis=-1)
-                if self.preprocess:
-                    mask = tf.divide(tf.cast(mask, tf.float32), 255.)
             else:
                 mask = tf.constant([])
+
+            if self.augment:
+                img, mask = self.augment_image(img, mask)
+
+            # Tensorflow image operations don't work with 0 channel grayscales. So need to do this here.
+            if mode != tf.estimator.ModeKeys.PREDICT:
+                mask = tf.squeeze(mask, axis=-1)
+
+            if self.preprocess:
+                img = tf.subtract(tf.cast(img, tf.float32), VGG_RGB_MEANS)
+                mask = tf.divide(tf.cast(mask, tf.float32), 255.)
 
             return example['id'], img, mask
 

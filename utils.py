@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import os
 from random import shuffle
+import json
 
 
 def _byteslist_feature(value):
@@ -143,3 +144,27 @@ def convert_ema(checkpoint_path):
     path = os.path.dirname(checkpoint_path)
     fname = os.path.basename(checkpoint_path)
     saver.save(sess, os.path.join(path, f'ema-{fname}'))
+
+
+def build_warm_start_map(checkpoint_path, prefix):
+    """
+        Build map of prefixed model var names to original names for use in warm start
+        TODO: {'resnet_v1_50/mean_rgb', 'resnet_v1_50/logits/biases', 'resnet_v1_50/logits/weights'}
+    """
+    var_list = tf.train.list_variables(checkpoint_path)
+
+    var_prefix_dict = {}
+    for name, shape in var_list:
+        # Removing global step variable
+        # Removing training-specific moving statistics for batch norm
+        if not name.startswith('global_step') and name.find('BatchNorm/moving') == -1:
+            key = f'{prefix}{name}'
+            var_prefix_dict[key] = name
+
+    dir = os.path.dirname(checkpoint_path)
+    fname = os.path.splitext(os.path.basename(checkpoint_path))[0]
+
+    with open(os.path.join(dir, f'{fname}.json'), 'w') as f:
+        json.dump(var_prefix_dict, f)
+
+    return var_prefix_dict

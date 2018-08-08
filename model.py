@@ -159,7 +159,7 @@ class BaseModel(object):
                 tf.summary.scalar('map_iou', map_iou)
 
                 logging_hook = tf.train.LoggingTensorHook({'map_iou': map_iou, 'learning_rate': learning_rate},
-                                                          every_n_iter=100)
+                                                          every_n_iter=10)
 
                 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
 
