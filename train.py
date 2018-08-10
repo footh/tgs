@@ -82,6 +82,7 @@ def main(_):
               'learning_rate.cosine_decay': c.get('learning_rate.cosine_decay'),
               'l2_normalize': c.get('l2_normalize'),
               'l2_weight_decay': c.get('l2_weight_decay'),
+              'adam_epsilon': c.get('optimizer.adam.epsilon'),
               'ema_decay': c.get('ema_decay'),
               'clip_grad_norm': c.get('clip_grad_norm'),
               'map_iou_thresholds': c.get('metric.map_iou.thresholds'),

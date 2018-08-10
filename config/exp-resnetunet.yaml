@@ -20,6 +20,7 @@ data:
   parallel_calls: 4
   ext:
     resize_dim: 128
+    resize_method: 'pad'
 # Base training parameters ---------------------------
 batch_size: 20
 train_steps: 2000
@@ -32,6 +33,9 @@ learning_rate:
     alpha: 0.01
 l2_weight_decay: 0.01
 l2_normalize:
+optimizer:
+  adam:
+    epsilon: 0.0001
 clip_grad_norm:
 ema_decay:
 log_steps: 10

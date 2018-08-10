@@ -40,8 +40,11 @@ def build_example(img_id, img, mask):
     feature = {
         'id': _byteslist_feature([img_id]),
         'img': _byteslist_feature([img]),
-        'mask': _byteslist_feature([mask])
     }
+
+    if mask is not None:
+        feature['mask'] = _byteslist_feature([mask])
+
     features = tf.train.Features(feature=feature)
     return tf.train.Example(features=features)
 
@@ -53,7 +56,7 @@ def write_examples(examples, output_file):
             writer.write(example.SerializeToString())
 
 
-def to_tfrecord(input_pattern, shards=40, output_dir='tfrecord', shuf=False):
+def to_tfrecord(input_pattern, shards=40, output_dir='tfrecord', shuf=False, with_mask=False):
 
     files = tf.gfile.Glob(input_pattern)
     if shuf:
@@ -75,7 +78,9 @@ def to_tfrecord(input_pattern, shards=40, output_dir='tfrecord', shuf=False):
 
             img_id, ext = os.path.splitext(os.path.basename(f))
             img = _raw_image(f)
-            mask = _raw_image(os.path.join(mask_dir, f'{img_id}{ext}'))
+            mask = None
+            if with_mask:
+                mask = _raw_image(os.path.join(mask_dir, f'{img_id}{ext}'))
 
             examples.append(build_example(img_id.encode(), img, mask))
 

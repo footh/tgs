@@ -57,6 +57,9 @@ class ImageDataInput(DataInput):
     """
     @staticmethod
     def augment_image(img, mask):
+        """
+            Apply various random augmentations to image and mask
+        """
 
         # Rotation
         rot = tf.random_uniform([], maxval=4, dtype=tf.int32)
@@ -70,14 +73,43 @@ class ImageDataInput(DataInput):
 
         return img, mask
 
+    def resize(self, img, resize_param=None):
+        """
+            Resize an image using various methods
+        """
+        min_padding = 10
+        resize_dim = self.config_dict['ext']['resize_dim']
+        orig_dim = tf.shape(img)[0]
+
+        if self.config_dict['ext']['resize_method'] == 'pad':
+            diff = resize_dim - orig_dim
+            pad_var = diff - min_padding
+
+            if resize_param is not None:
+                paddings = resize_param
+            else:
+                top = tf.random_uniform([], maxval=pad_var, dtype=tf.int32) + min_padding
+                bottom = diff - top
+
+                left = tf.random_uniform([], maxval=pad_var, dtype=tf.int32) + min_padding
+                right = diff - left
+
+                paddings = tf.reshape(tf.stack([top, bottom, left, right, 0, 0]), (3, 2))
+
+            img = tf.pad(img, paddings, "REFLECT")
+            param = paddings
+        else:
+            img = tf.image.resize_images(img, (resize_dim, resize_dim),
+                                         method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+            param = orig_dim
+
+        return img, param
+
     def input_fn(self, mode):
         """
         Input function to be used in Estimator training
         """
         dataset = self.build_dataset(mode)
-
-        # image_dim = self.config_dict['ext']['image_dim']
-        resize_dim = self.config_dict['ext']['resize_dim']
 
         # Use `tf.parse_single_example()` to extract data from a `tf.Example`
         # protocol buffer, and perform any additional per-record preprocessing.
@@ -95,13 +127,11 @@ class ImageDataInput(DataInput):
             example = tf.parse_single_example(record, feature_map)
 
             img = tf.image.decode_png(example['img'])
-            img = tf.image.resize_images(img, (resize_dim, resize_dim),
-                                         method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+            img, resize_param = self.resize(img)
 
             if mode != tf.estimator.ModeKeys.PREDICT:
                 mask = tf.image.decode_png(example['mask'])
-                mask = tf.image.resize_images(mask, (resize_dim, resize_dim),
-                                              method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+                mask, _ = self.resize(mask, resize_param)
             else:
                 mask = tf.constant([])
 
@@ -116,7 +146,7 @@ class ImageDataInput(DataInput):
                 img = tf.subtract(tf.cast(img, tf.float32), VGG_RGB_MEANS)
                 mask = tf.divide(tf.cast(mask, tf.float32), 255.)
 
-            return example['id'], img, mask
+            return example['id'], img, mask, resize_param
 
         # Use `Dataset.map()` to build a pair of a feature dictionary and a label
         # tensor for each example.
@@ -127,9 +157,10 @@ class ImageDataInput(DataInput):
         dataset = dataset.repeat(self.num_epochs)
         iterator = dataset.make_one_shot_iterator()
 
-        img_id, img, mask = iterator.get_next()
+        img_id, img, mask, resize_param = iterator.get_next()
         image_dict = {
             'id': img_id,
-            'img': img
+            'img': img,
+            self.config_dict['ext']['resize_method']: resize_param
         }
         return image_dict, mask

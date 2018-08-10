@@ -161,7 +161,9 @@ class BaseModel(object):
                 logging_hook = tf.train.LoggingTensorHook({'map_iou': map_iou, 'learning_rate': learning_rate},
                                                           every_n_iter=10)
 
-                optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+                adam_epsilon = 1e-8 if params['adam_epsilon'] is None else params['adam_epsilon']
+                tf.logging.info(f'ADAM EPSILON: {adam_epsilon}')
+                optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, epsilon=adam_epsilon)
 
                 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
                 with tf.control_dependencies(update_ops):
