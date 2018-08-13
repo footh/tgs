@@ -2,84 +2,122 @@ import tensorflow as tf
 from tgs import config
 from tgs import data
 from tgs import model as m
+from tgs import metric
 import numpy as np
 import os
-import datetime
-import skimage
-from PIL import Image
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
-SUBMISSION_DIR = 'submission'
+ANALYZE_DIR = 'analyze'
 
 
-def submission(predictions, submission_file, top_k=20):
-    tf.logging.info('Writing submission file: %s' % submission_file)
-    with tf.gfile.Open(submission_file, "w+") as f:
-        f.write("id,rle_mask\n")
+def resize(arr, resize_method, resize_param):
 
-        for i, prediction in enumerate(predictions):
-            tf.logging.info('Processing record %s with id: %s' % (i + 1, prediction['ids']))
-            top_indices = np.argpartition(prediction['probabilities'], -top_k)[-top_k:]
-            preds = prediction['probabilities'][top_indices]
-            preds = list(zip(top_indices, preds))
-            preds = sorted(preds, key=lambda p: -p[1])
-            line = prediction['ids'].decode('utf-8') + ',' + ' '.join(
-                "%i %g" % (label, score) for (label, score) in preds) + "\n"
-
-            f.write(line)
-            f.flush()
+    if resize_method == 'pad':
+        top = resize_param[0, 0]
+        bottom = resize_param[0, 1]
+        left = resize_param[1, 0]
+        right = resize_param[1, 1]
+        r, c = arr.shape
+        return arr[top:r - bottom, left:c - right]
+    else:
+        # TODO: interpolated resize
+        return np.resize(arr, (resize_param, resize_param))
 
 
-def main(_):
+class AnalyzeEvaluationHook(tf.train.SessionRunHook):
+
+    def __init__(self):
+        results_dict = {'id': [], 'prediction': [], 'label': [], 'resize_param': []}
+        self.results_dict = results_dict
+
+    def before_run(self, run_context):
+        return tf.train.SessionRunArgs(tf.get_collection('analyze_eval'))
+
+    def after_run(self, run_context, run_values):
+        ids, preds, labels, resize_params = run_values.results
+
+        self.results_dict['id'].extend(ids)
+        self.results_dict['prediction'].extend(preds)
+        self.results_dict['label'].extend(labels)
+        self.results_dict['resize_param'].extend(resize_params)
+
+
+def evaluate(config_file, checkpoint_path, hooks=None):
     tf.logging.info("Reading config file...")
-    c = config.Config(FLAGS.config_file)
+    c = config.Config(config_file)
 
     tf.logging.info('Using data class: %s' % c.get('data.class'))
     dataset = data.DataInput.get(c.get('data.class'))(c.get('data'),
                                                       batch_size=c.get('batch_size'),
-                                                      label_cnt=c.get('model.label_cnt'),
                                                       num_epochs=1,
+                                                      label_cnt=c.get('model.label_cnt'),
                                                       augment=False)
 
     tf.logging.info('Using model: %s' % c.get('model.class'))
     model = m.BaseModel.get(c.get('model.class'))(c.get('model'))
 
-    params = {'l2_normalize': c.get('l2_normalize')}
+    resize_method = c.get('data.ext.resize_method')
+    params = {'l2_normalize': c.get('l2_normalize'),
+              'map_iou_thresholds': c.get('metric.map_iou.thresholds'),
+              'map_iou_predthresh': c.get('metric.map_iou.pred_thresh'),
+              'resize_method': resize_method}
     estimator = tf.estimator.Estimator(model_fn=model.model_fn, config=None, params=params)
 
-    predictions = estimator.predict(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.PREDICT),
-                                    predict_keys=['id', 'probabilities'],
-                                    checkpoint_path=FLAGS.checkpoint_path)
+    evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
+                                    steps=c.get('valid_steps'),
+                                    hooks=hooks,
+                                    checkpoint_path=checkpoint_path)
 
-    submission_dir = os.path.join(os.path.dirname(FLAGS.checkpoint_path), SUBMISSION_DIR)
-    tf.gfile.MakeDirs(submission_dir)
-    submission_file_name = 'submission-%s-%s.csv' % \
-                           (FLAGS.submission_file, datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
-    submission_file_name = os.path.join(submission_dir, submission_file_name)
-    # submission(predictions, submission_file_name, top_k=c.get('metric.gap.top_k'))
-
-    for i, prediction in enumerate(predictions):
-        if i > 10:
-            break
-        img_id = prediction['id'].decode()
-        tf.logging.info(f"prediction id: {img_id}")
-
-        mask_pred = prediction['probabilities']
-        mask_pred = skimage.img_as_ubyte(mask_pred > 0.2)
-        mask_gt = Image.open(f'tgs/data/train/masks/{img_id}.png')
-        mask_gt = np.asarray(mask_gt.resize((128, 128))).astype(np.uint8)
-        tf.logging.info(np.max(mask_pred.dtype))
-        tf.logging.info(np.max(mask_gt.dtype))
-        combo = np.concatenate((mask_pred, mask_gt), axis=-1)
-
-        tf.gfile.MakeDirs('/tmp/tgs')
-        Image.fromarray(combo).save(f"/tmp/tgs/{img_id}-p.png")
+    return evaluation
 
 
-tf.app.flags.DEFINE_string(
-    'submission_file', None,
-    'The name of the submission file to save (date will be automatically appended)')
+def analyze(results, config_file, output_dir='.'):
+    c = config.Config(config_file)
+    resize_method = c.get('data.ext.resize_method')
+
+    ids = results['id']
+    predictions = results['prediction']
+    labels = results['label']
+    resize_params = results['resize_param']
+
+    # Resize to original dimensions
+    for i in range(len(ids)):
+        predictions[i] = resize(predictions[i], resize_method, resize_params[i])
+        labels[i] = resize(labels[i], resize_method, resize_params[i])
+
+    # Build map_iou and loss graph
+    preds = tf.placeholder(tf.float32)
+    lbls = tf.placeholder(tf.float32)
+    preds_batch = tf.expand_dims(preds, axis=0)
+    lbls_batch = tf.expand_dims(lbls, axis=0)
+    map_iou = metric.map_iou(preds_batch, lbls_batch)
+    loss = m.BaseModel.cross_entropy_loss(lbls_batch, preds_batch)
+
+    metrics = []
+    with tf.Session() as sess:
+        for i in range(len(ids)):
+            metrics.append(sess.run([map_iou, loss], feed_dict={preds: predictions[i], lbls: labels[i]}))
+
+    with tf.gfile.Open(os.path.join(output_dir, 'metrics.csv'), "w+") as f:
+        f.write("id,map_iou,loss\n")
+        for i in range(len(ids)):
+            line = f"{ids[i].decode('utf-8')},{metrics[i][0]},{metrics[i][1]}\n"
+            f.write(line)
+            f.flush()
+
+
+def main(_):
+    if FLAGS.analyze:
+        analyze_hook = AnalyzeEvaluationHook()
+        evaluate(FLAGS.config_file, FLAGS.checkpoint_path, hooks=[analyze_hook])
+
+        output_dir = os.path.join(os.path.dirname(FLAGS.checkpoint_path), ANALYZE_DIR)
+        tf.gfile.MakeDirs(output_dir)
+        analyze(analyze_hook.results_dict, FLAGS.config_file, output_dir=output_dir)
+    else:
+        evaluate(FLAGS.config_file, FLAGS.checkpoint_path)
+
 
 tf.app.flags.DEFINE_string(
     'config_file', None,
@@ -88,6 +126,10 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_string(
     'checkpoint_path', None,
     'Full path to the checkpoint used to initialize the graph')
+
+tf.app.flags.DEFINE_boolean(
+    'analyze', False,
+    'Whether to run evaluation analysis')
 
 FLAGS = tf.app.flags.FLAGS
 

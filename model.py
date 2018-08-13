@@ -42,7 +42,9 @@ class BaseModel(object):
         cross_entropy_loss = float_labels * tf.log(predictions + epsilon) + \
                              (1 - float_labels) * tf.log(1 - predictions + epsilon)
         cross_entropy_loss = tf.negative(cross_entropy_loss)
-        return tf.reduce_mean(tf.reduce_sum(cross_entropy_loss, 1))
+        # return tf.reduce_mean(tf.reduce_sum(cross_entropy_loss, (1, 2)))
+        # Averaging across all pixels and batch
+        return tf.reduce_mean(cross_entropy_loss)
 
     @staticmethod
     def clip_gradient_norms(grads_and_vars, max_norm):
@@ -107,6 +109,14 @@ class BaseModel(object):
             'id': features['id'],
             'probabilities': predicted_probs
         }
+
+        tf.add_to_collection('analyze_eval', features['id'])
+        tf.add_to_collection('analyze_eval', predicted_probs)
+        tf.add_to_collection('analyze_eval', labels)
+
+        if 'resize_method' in params and params['resize_method'] is not None:
+            predictions[params['resize_method']] = features[params['resize_method']]
+            tf.add_to_collection('analyze_eval', features[params['resize_method']])
 
         if mode == tf.estimator.ModeKeys.PREDICT:
             spec = tf.estimator.EstimatorSpec(mode, predictions=predictions)

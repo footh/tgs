@@ -73,17 +73,16 @@ class ImageDataInput(DataInput):
 
         return img, mask
 
-    def resize(self, img, resize_param=None):
+    def resize(self, img, resize_param=None, min_padding=5):
         """
             Resize an image using various methods
         """
-        min_padding = 10
         resize_dim = self.config_dict['ext']['resize_dim']
         orig_dim = tf.shape(img)[0]
 
         if self.config_dict['ext']['resize_method'] == 'pad':
             diff = resize_dim - orig_dim
-            pad_var = diff - min_padding
+            pad_var = diff - (min_padding * 2)
 
             if resize_param is not None:
                 paddings = resize_param
