@@ -172,7 +172,6 @@ class BaseModel(object):
                                                           every_n_iter=10)
 
                 adam_epsilon = 1e-8 if params['adam_epsilon'] is None else params['adam_epsilon']
-                tf.logging.info(f'ADAM EPSILON: {adam_epsilon}')
                 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, epsilon=adam_epsilon)
 
                 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
