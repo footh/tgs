@@ -1,5 +1,6 @@
 import tensorflow as tf
 from random import shuffle
+import math
 
 VGG_RGB_MEANS = [123.68, 116.78, 103.94]
 
@@ -60,16 +61,23 @@ class ImageDataInput(DataInput):
         """
             Apply various random augmentations to image and mask
         """
-
         # Rotation
-        rot = tf.random_uniform([], maxval=4, dtype=tf.int32)
-        img = tf.image.rot90(img, k=rot)
-        mask = tf.image.rot90(mask, k=rot)
+        angle = tf.random_uniform([], minval=math.radians(-2), maxval=math.radians(2))
+        img = tf.contrib.image.rotate(img, angle)
+        mask = tf.contrib.image.rotate(mask, angle)
+
+        # Shearing
+        # sx = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
+        # sy = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
+        # s_vec = tf.stack([sx, 1. - sx, 0., 1. - sy, sy, 0., 0., 0.])
+        # s_vec = tf.expand_dims(s_vec, axis=0)
+        # img = tf.contrib.image.transform(img, s_vec)
+        # mask = tf.contrib.image.transform(mask, s_vec)
 
         # Flipping
         flip = tf.random_uniform([], maxval=2, dtype=tf.int32)
-        img = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_up_down(img), lambda: tf.identity(img))
-        mask = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_up_down(mask), lambda: tf.identity(mask))
+        img = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_left_right(img), lambda: tf.identity(img))
+        mask = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_left_right(mask), lambda: tf.identity(mask))
 
         return img, mask
 
@@ -95,7 +103,7 @@ class ImageDataInput(DataInput):
 
                 paddings = tf.reshape(tf.stack([top, bottom, left, right, 0, 0]), (3, 2))
 
-            img = tf.pad(img, paddings, "REFLECT")
+            img = tf.pad(img, paddings, "SYMMETRIC")
             param = paddings
         else:
             img = tf.image.resize_images(img, (resize_dim, resize_dim),
