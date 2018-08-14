@@ -67,12 +67,12 @@ class ImageDataInput(DataInput):
         mask = tf.contrib.image.rotate(mask, angle)
 
         # Shearing
-        # sx = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
-        # sy = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
-        # s_vec = tf.stack([sx, 1. - sx, 0., 1. - sy, sy, 0., 0., 0.])
-        # s_vec = tf.expand_dims(s_vec, axis=0)
-        # img = tf.contrib.image.transform(img, s_vec)
-        # mask = tf.contrib.image.transform(mask, s_vec)
+        sx = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
+        sy = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
+        s_vec = tf.stack([sx, 1. - sx, 0., 1. - sy, sy, 0., 0., 0.])
+        s_vec = tf.expand_dims(s_vec, axis=0)
+        img = tf.contrib.image.transform(img, s_vec)
+        mask = tf.contrib.image.transform(mask, s_vec)
 
         # Flipping
         flip = tf.random_uniform([], maxval=2, dtype=tf.int32)
