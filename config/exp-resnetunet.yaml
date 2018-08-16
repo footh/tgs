@@ -13,14 +13,14 @@ metric:
 # Data parameters ------------------------------------
 data:
   class: 'ImageDataInput'
-  train_file_pattern: ['./tgs/data/train/tfrecord/tgs[0-2][0-9]', './tgs/data/train/tfrecord/tgs[3][0-5]']
-  valid_file_pattern: ['./tgs/data/train/tfrecord/tgs[3][6-9]']
+  train_file_pattern: ['./tgs/data/train/tfrecord/tgs*']
+  valid_file_pattern: ['./tgs/data/valid/tfrecord/tgs*']
   test_file_pattern: ['./tgs/data/test/tfrecord/tgs*']
   shuf_buf: 5000
   parallel_calls: 4
   ext:
     resize_dim: 128
-    resize_method: 'pad'
+    resize_method: 'resize'
 # Base training parameters ---------------------------
 batch_size: 20
 train_steps: 2000
