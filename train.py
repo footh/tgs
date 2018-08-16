@@ -46,17 +46,24 @@ def warm_start(cfg):
     return settings
 
 
-def main(_):
+def move_config(config_file, model_dir):
+    """
+        Move config file to model directory
+    """
+    tf.logging.info("Copying config file to model directory...")
+    tf.gfile.MakeDirs(os.path.join(model_dir, CONFIG_DIR))
+    new_config_file = os.path.join(model_dir, CONFIG_DIR, os.path.basename(config_file))
+    tf.gfile.Copy(FLAGS.config_file, new_config_file, overwrite=True)
+
+    return new_config_file
+
+
+def train_and_eval(config_file, model_dir, hooks=None):
 
     tf.logging.info('Using Tensorflow version: %s' % tf.__version__)
 
-    tf.logging.info("Copying config file to model directory...")
-    tf.gfile.MakeDirs(os.path.join(FLAGS.model_dir, CONFIG_DIR))
-    new_config_file = os.path.join(FLAGS.model_dir, CONFIG_DIR, os.path.basename(FLAGS.config_file))
-    tf.gfile.Copy(FLAGS.config_file, new_config_file, overwrite=True)
-
     tf.logging.info("Reading config file...")
-    c = config.Config(new_config_file)
+    c = config.Config(config_file)
 
     tf.logging.info('Using data class: %s' % c.get('data.class'))
     dataset = data.DataInput.get(c.get('data.class'))(c.get('data'),
@@ -71,7 +78,7 @@ def main(_):
     # https://github.com/tensorflow/tensorflow/commit/3edb609926f2521c726737fc1efeae1572dc6581#diff-bc4a1638bbcd88997adf5e723b8609c7
     # For now, setting throttle_secs to a minute less than save_checkpoint_secs which seems to work well.
     # TODO: would like to prevent checkpoint saving AFTER every eval
-    run_config = tf.estimator.RunConfig(model_dir=FLAGS.model_dir,
+    run_config = tf.estimator.RunConfig(model_dir=model_dir,
                                         save_checkpoints_steps=None,
                                         save_checkpoints_secs=c.get('checkpoint.save_seconds'),
                                         keep_checkpoint_max=c.get('checkpoint.keep'),
@@ -95,13 +102,22 @@ def main(_):
 
     # tsrh = TrainingSessionRunHook(f"{model.name}/loss")
     train_spec = tf.estimator.TrainSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN),
-                                        max_steps=c.get('train_steps'))
+                                        max_steps=c.get('train_steps'),
+                                        hooks=hooks)
 
     # Per note above, need to use throttle_secs to affect timed evaluation. Checkpoint setting in are ignored.
     eval_spec = tf.estimator.EvalSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
                                       steps=c.get('valid_steps'), throttle_secs=c.get('checkpoint.save_seconds'))
 
     tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
+
+
+def main(_):
+    tf.logging.info('Using Tensorflow version: %s' % tf.__version__)
+
+    new_config_file = move_config(FLAGS.config_file, FLAGS.model_dir)
+
+    train_and_eval(new_config_file, FLAGS.model_dir)
 
 
 tf.app.flags.DEFINE_string(
