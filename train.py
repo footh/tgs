@@ -68,7 +68,7 @@ def build_estimator(cfg, model_dir):
     model = m.BaseModel.get(cfg.get('model.class'))(cfg.get('model'))
 
     run_config = tf.estimator.RunConfig(model_dir=model_dir,
-                                        save_checkpoints_steps=None,
+                                        save_checkpoints_steps=cfg.get('checkpoint.save_steps'),
                                         save_checkpoints_secs=cfg.get('checkpoint.save_seconds'),
                                         keep_checkpoint_max=cfg.get('checkpoint.keep'),
                                         log_step_count_steps=100 if cfg.get('log_steps') is None else cfg.get('log_steps'))
@@ -92,7 +92,7 @@ def build_estimator(cfg, model_dir):
     return estimator
 
 
-def train_and_eval(cfg, dataset, estimator, eval_seconds=600, hooks=None):
+def train_and_eval(cfg, dataset, estimator, hooks=None):
     """
         Performs the estimator's train_and_evaluate method
     """
@@ -101,10 +101,12 @@ def train_and_eval(cfg, dataset, estimator, eval_seconds=600, hooks=None):
                                         max_steps=cfg.get('train_steps'),
                                         hooks=hooks)
 
-    # Evaluation starts at the minimum of an epoch end or the throttle_secs argument. So this must be coordinated with
-    # the dataset num_epochs
+    # Evaluation always seems to occur after first checkpoint save which is controlled by save_checkpoint_* arguments
+    # in estimator RunConfig. Then, throttle_secs kicks in where it will wait a minimum of this many seconds before an
+    # evaluation is run again (after a RunConfig configured checkpoint save). Setting to 1 second means the RunConfig
+    # save_checkpoint_* arguments will control evaluation triggers.
     eval_spec = tf.estimator.EvalSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
-                                      steps=cfg.get('valid_steps'), throttle_secs=eval_seconds)
+                                      steps=cfg.get('valid_steps'), throttle_secs=1)
 
     return tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
 

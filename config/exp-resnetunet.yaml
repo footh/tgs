@@ -40,7 +40,7 @@ clip_grad_norm:
 ema_decay:
 log_steps: 10
 checkpoint:
-  save_seconds: 999999
+  save_steps: 300
   keep: 80
   warm_start:
     checkpoint_path: './tgs/training-runs/init/resnet_v1_50.ckpt'
