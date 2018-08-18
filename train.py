@@ -19,14 +19,14 @@ def warm_start(cfg):
     if cfg.get('checkpoint.warm_start.checkpoint_path') is not None:
         warm_start_map = None
         if cfg.get('checkpoint.warm_start.var_map') is not None:
-            with open(cfg.get('checkpoint.warm_start.var_map')) as f:
+            with tf.gfile.Open(cfg.get('checkpoint.warm_start.var_map')) as f:
                 warm_start_map = json.load(f)
 
         warm_start_var = None
         if cfg.get('checkpoint.warm_start.var_init') is not None:
             warm_start_var = cfg.get('checkpoint.warm_start.var_init')
 
-        tf.logging.info('Warm starting with: %s' % cfg.get('checkpoint.warm_start_path'))
+        tf.logging.info('Warm starting with: %s' % cfg.get('checkpoint.warm_start.checkpoint_path'))
         settings = tf.estimator.WarmStartSettings(ckpt_to_initialize_from=cfg.get('checkpoint.warm_start.checkpoint_path'),
                                                   vars_to_warm_start=warm_start_var,
                                                   var_name_to_prev_var_name=warm_start_map)
@@ -112,10 +112,22 @@ def train_and_eval(cfg, dataset, estimator, hooks=None):
 
 
 def train(cfg, dataset, estimator, hooks=None):
-    """
-        Performs the estimators train method. Returns the estimator for chaining.
-    """
-    return estimator.train(dataset.input_fn, hook=hooks, steps=cfg.get('train_steps'))
+
+    while True:
+        # Will the estimator's RunConfig save_checkpoint_* settings cause training to stop or do I need to set this
+        # 'steps' parameter. Either way, I think this should be set to the save_checkpoint_secs for connsistency. But
+        # if I want to vary checkpoint save steps (ie. as loss
+        estimator.train(lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN),
+                        steps=cfg.get('train_steps'),
+                        hook=hooks)
+
+        # Use these to reset learning rate and prevent warm start on future calls and set save checkpoint steps
+        estimator._params = None
+        estimator._warm_start_settings = None
+        estimator._config.save_checkpoints_steps
+
+        evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
+                                        steps=cfg.get('valid_steps'))
 
 
 def main(_):
@@ -140,6 +152,10 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_string(
     'config_file', './tgs/config/exp-resnetunet.yaml',
     'File containing the configuration for this training run')
+
+tf.app.flags.DEFINE_boolean(
+    'train_and_eval', False,
+    'Switch to run tensorflow train_and_evaluate')
 
 
 FLAGS = tf.app.flags.FLAGS

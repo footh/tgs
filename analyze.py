@@ -47,14 +47,13 @@ class AnalyzeEvaluationHook(tf.train.SessionRunHook):
         self.results_dict['resize_param'].extend(resize_params)
 
 
-def analyze(results, config_file, output_dir='.', bottom_k=10):
+def analyze(results, cfg, output_dir='.', bottom_k=10):
     """
         Given evaluation results performs analysis:
         1) Writes metrics csv
         2) Takes bottom k metric results and writes to image files
     """
-    c = config.Config(config_file)
-    resize_method = c.get('data.ext.resize_method')
+    resize_method = cfg.get('data.ext.resize_method')
 
     ids = results['id']
     predictions = results['prediction']
