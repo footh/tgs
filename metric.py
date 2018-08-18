@@ -9,7 +9,11 @@ def iou(predictions, labels, pred_thresh=0.5):
         In the case that the labels AND predictions have no positive values, the 'union' will be 0. The IoU will result
         in a 1.0 since the prediction accurately predicted there were no labels.
     """
-    preds = tf.greater_equal(predictions, pred_thresh)
+    if pred_thresh is not None:
+        preds = tf.greater_equal(predictions, pred_thresh)
+    else:
+        preds = tf.cast(predictions, tf.bool)
+
     labels_bool = tf.cast(labels, tf.bool)
 
     intersection = tf.reduce_sum(tf.cast(tf.logical_and(preds, labels_bool), tf.float32), axis=(1, 2))

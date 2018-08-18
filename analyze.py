@@ -1,7 +1,7 @@
 import tensorflow as tf
-from tgs import config
 from tgs import metric
 from tgs import model as m
+from tgs import post_process
 import numpy as np
 import os
 import skimage
@@ -9,21 +9,8 @@ from PIL import Image
 
 ANALYZE_DIR = 'analyze'
 BOTTOM_K_DIR = 'bottom_k'
-IMAGE_DIR = 'tgs/data/train/images'
-
-
-def resize(arr, resize_method, resize_param):
-
-    if resize_method == 'pad':
-        top = resize_param[0, 0]
-        bottom = resize_param[0, 1]
-        left = resize_param[1, 0]
-        right = resize_param[1, 1]
-        r, c = arr.shape
-        return arr[top:r - bottom, left:c - right]
-    else:
-        # TODO: interpolated resize
-        return np.resize(arr, (resize_param, resize_param))
+IMAGE_DIR = 'tgs/data/raw/images'
+MASK_DIR = 'tgs/data/raw/masks'
 
 
 class AnalyzeEvaluationHook(tf.train.SessionRunHook):
@@ -62,29 +49,36 @@ def analyze(results, cfg, output_dir='.', bottom_k=10):
 
     # Resize to original dimensions
     for i in range(len(ids)):
-        predictions[i] = resize(predictions[i], resize_method, resize_params[i])
-        labels[i] = resize(labels[i], resize_method, resize_params[i])
+        predictions[i] = post_process.downsample(predictions[i], resize_method, resize_params[i])
+        labels[i] = post_process.downsample(labels[i], resize_method, resize_params[i])
 
     # Build map_iou and loss graph
     preds = tf.placeholder(tf.float32)
     lbls = tf.placeholder(tf.float32)
     preds_batch = tf.expand_dims(preds, axis=0)
     lbls_batch = tf.expand_dims(lbls, axis=0)
-    map_iou = metric.map_iou(preds_batch, lbls_batch)
+    map_iou = metric.map_iou(preds_batch, lbls_batch, pred_thresh=None)
     loss = m.BaseModel.cross_entropy_loss(lbls_batch, preds_batch)
 
     metrics = []
+    thresholds = np.asarray(range(1, 10)) / 10.
     with tf.Session() as sess:
         for i in range(len(ids)):
-            metrics.append(sess.run([map_iou, loss], feed_dict={preds: predictions[i], lbls: labels[i]}))
+            metrics_id = [sess.run(loss, feed_dict={preds: predictions[i], lbls: labels[i]})]
+            for thresh in thresholds:
+                pred = np.asarray(post_process.threshold(predictions[i], prob_thresh=thresh), np.float32)
+                metrics_id.append(sess.run(map_iou, feed_dict={preds: pred, lbls: labels[i]}))
+
+            metrics.append(metrics_id)
 
     output_dir = os.path.join(output_dir, ANALYZE_DIR)
     tf.gfile.MakeDirs(output_dir)
 
     with tf.gfile.Open(os.path.join(output_dir, 'metrics.csv'), "w+") as f:
-        f.write("id,map_iou,loss\n")
+        map_iou_header = ','.join([f'map_iou{t}' for t in thresholds])
+        f.write(f'id,loss,{map_iou_header}\n')
         for i in range(len(ids)):
-            line = f"{ids[i].decode('utf-8')},{metrics[i][0]},{metrics[i][1]}\n"
+            line = f"{ids[i].decode('utf-8')},{','.join(map(str, metrics[i]))}\n"
             f.write(line)
             f.flush()
 
@@ -105,3 +99,6 @@ def analyze(results, cfg, output_dir='.', bottom_k=10):
 
         orig_img = Image.open(os.path.join(IMAGE_DIR, f'{img_id}.png'))
         orig_img.save(os.path.join(bottom_k_dir, f'{img_id}-orig.png'))
+
+        omask_img = Image.open(os.path.join(MASK_DIR, f'{img_id}.png'))
+        omask_img.save(os.path.join(bottom_k_dir, f'{img_id}-omask.png'))
