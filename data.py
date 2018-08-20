@@ -7,7 +7,7 @@ VGG_RGB_MEANS = [123.68, 116.78, 103.94]
 
 class DataInput(object):
 
-    def __init__(self, config_dict, batch_size=1024, num_epochs=999999, label_cnt=1, preprocess=True, augment=True):
+    def __init__(self, config_dict, batch_size=1024, num_epochs=999999, label_cnt=1, preprocess=True, augment=None):
 
         assert config_dict is not None, "Config dictionary cannot be empty"
         # TODO: validate config entries?
@@ -56,28 +56,39 @@ class ImageDataInput(DataInput):
     """
     Reads TFRecords image Examples.
     """
-    @staticmethod
-    def augment_image(img, mask):
+    def augment_image(self, img, mask):
         """
             Apply various random augmentations to image and mask
         """
         # Rotation
-        angle = tf.random_uniform([], minval=math.radians(-2), maxval=math.radians(2))
-        img = tf.contrib.image.rotate(img, angle)
-        mask = tf.contrib.image.rotate(mask, angle)
+        if 'rotation' in self.augment:
+            if self.augment['rotation'] is None:
+                angle = tf.random_uniform([], minval=math.radians(-2), maxval=math.radians(2))
+            else:
+                angle = math.radians(self.augment['rotation'])
+            img = tf.contrib.image.rotate(img, angle)
+            mask = tf.contrib.image.rotate(mask, angle)
 
         # Shearing
-        sx = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
-        sy = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
-        s_vec = tf.stack([sx, 1. - sx, 0., 1. - sy, sy, 0., 0., 0.])
-        s_vec = tf.expand_dims(s_vec, axis=0)
-        img = tf.contrib.image.transform(img, s_vec)
-        mask = tf.contrib.image.transform(mask, s_vec)
+        if 'shear' in self.augment:
+            if self.augment['shear'] is None:
+                sx = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
+                sy = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
+            else:
+                sx, sy = self.augment['shear']
+
+            s_vec = tf.stack([sx, 1. - sx, 0., 1. - sy, sy, 0., 0., 0.])
+            s_vec = tf.expand_dims(s_vec, axis=0)
+            img = tf.contrib.image.transform(img, s_vec)
+            mask = tf.contrib.image.transform(mask, s_vec)
 
         # Flipping
-        flip = tf.random_uniform([], maxval=2, dtype=tf.int32)
-        img = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_left_right(img), lambda: tf.identity(img))
-        mask = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_left_right(mask), lambda: tf.identity(mask))
+        if 'flip' in self.augment:
+            flip = self.augment['flip']
+            if flip is None:
+                flip = tf.random_uniform([], maxval=2, dtype=tf.int32)
+            img = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_left_right(img), lambda: tf.identity(img))
+            mask = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_left_right(mask), lambda: tf.identity(mask))
 
         return img, mask
 
@@ -142,7 +153,7 @@ class ImageDataInput(DataInput):
             else:
                 mask = tf.constant([])
 
-            if self.augment:
+            if self.augment is not None:
                 img, mask = self.augment_image(img, mask)
 
             # Tensorflow image operations don't work with 0 channel grayscales. So need to do this here.

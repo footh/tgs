@@ -15,7 +15,7 @@ def evaluate(cfg, checkpoint_path, hooks=None):
                                                         batch_size=cfg.get('batch_size'),
                                                         num_epochs=1,
                                                         label_cnt=cfg.get('model.label_cnt'),
-                                                        augment=False)
+                                                        augment=None)
 
     tf.logging.info('Using model: %s' % cfg.get('model.class'))
     model = m.BaseModel.get(cfg.get('model.class'))(cfg.get('model'))

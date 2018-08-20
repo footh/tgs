@@ -51,10 +51,12 @@ def build_dataset(cfg, epochs=999999):
         Builds dataset for use in estimator training
     """
     tf.logging.info('Using data class: %s' % cfg.get('data.class'))
+    augment = {'rotation': None, 'shear': None, 'flip': None}
     dataset = data.DataInput.get(cfg.get('data.class'))(cfg.get('data'),
                                                         batch_size=cfg.get('batch_size'),
                                                         label_cnt=cfg.get('model.label_cnt'),
-                                                        num_epochs=epochs)
+                                                        num_epochs=epochs,
+                                                        augment=augment)
 
     return dataset
 
