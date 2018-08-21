@@ -85,13 +85,18 @@ def analyze(results, cfg, output_dir='.', bottom_k=10):
     metrics = np.asarray(metrics)
     bottom_k_dir = os.path.join(output_dir, BOTTOM_K_DIR)
     tf.gfile.MakeDirs(bottom_k_dir)
-    bottom_indices = np.argpartition(metrics[:, 0], bottom_k)[:bottom_k]
+    # Ordering by worst mean ious
+    bottom_indices = np.argpartition(np.mean(metrics[:, 1:], axis=-1), bottom_k)[:bottom_k]
 
     for i in bottom_indices:
         img_id = ids[i].decode()
         pred_img = skimage.img_as_ubyte(predictions[i])
         pred_img = Image.fromarray(pred_img)
         pred_img.save(os.path.join(bottom_k_dir, f'{img_id}-pred.png'))
+
+        pred5_img = skimage.img_as_ubyte(predictions[i] > 0.5)
+        pred5_img = Image.fromarray(pred5_img)
+        pred5_img.save(os.path.join(bottom_k_dir, f'{img_id}-pred5.png'))
 
         mask_img = skimage.img_as_ubyte(labels[i])
         mask_img = Image.fromarray(mask_img)

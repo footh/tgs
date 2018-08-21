@@ -51,7 +51,8 @@ def build_dataset(cfg, epochs=999999):
         Builds dataset for use in estimator training
     """
     tf.logging.info('Using data class: %s' % cfg.get('data.class'))
-    augment = {'rotation': None, 'shear': None, 'flip': None}
+    # augment = {'rotation': None, 'shear': None, 'flip': None}
+    augment = {'flip': None}
     dataset = data.DataInput.get(cfg.get('data.class'))(cfg.get('data'),
                                                         batch_size=cfg.get('batch_size'),
                                                         label_cnt=cfg.get('model.label_cnt'),
@@ -107,7 +108,8 @@ def train_and_eval(cfg, dataset, estimator, hooks=None):
     # in estimator RunConfig. Then, throttle_secs kicks in where it will wait a minimum of this many seconds before an
     # evaluation is run again (after a RunConfig configured checkpoint save). Setting to 1 second means the RunConfig
     # save_checkpoint_* arguments will control evaluation triggers.
-    eval_spec = tf.estimator.EvalSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
+    # Second argument is to ignore data augmentations on eval.
+    eval_spec = tf.estimator.EvalSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL, True),
                                       steps=cfg.get('valid_steps'), throttle_secs=1)
 
     return tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
@@ -126,7 +128,7 @@ def train(cfg, dataset, estimator, hooks=None):
         # Use these to reset learning rate and prevent warm start on future calls and set save checkpoint steps
         estimator._params = None
         estimator._warm_start_settings = None
-        estimator._config.save_checkpoints_steps
+        estimator._config.save_checkpoints_steps = None
 
         evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
                                         steps=cfg.get('valid_steps'))

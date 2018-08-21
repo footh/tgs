@@ -123,9 +123,11 @@ class ImageDataInput(DataInput):
 
         return img, param
 
-    def input_fn(self, mode):
+    def input_fn(self, mode, ignore_augment=False):
         """
         Input function to be used in Estimator training
+        (ignore_augment is used to ignore the augment dict for augmenting data. Useful for train_and_evaluate where
+        (the augmentation can be turned off on evaluation via the input_fn)
         """
         dataset = self.build_dataset(mode)
 
@@ -153,7 +155,7 @@ class ImageDataInput(DataInput):
             else:
                 mask = tf.constant([])
 
-            if self.augment is not None:
+            if not ignore_augment and self.augment is not None:
                 img, mask = self.augment_image(img, mask)
 
             # Tensorflow image operations don't work with 0 channel grayscales. So need to do this here.
