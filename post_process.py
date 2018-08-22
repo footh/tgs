@@ -6,7 +6,7 @@ def downsample(arr, resize_method, resize_param):
     """
        Downsamples image to proper size based on method
     """
-    if resize_method == 'pad':
+    if resize_method == 'pad' or resize_method == 'pad-fixed':
         top = resize_param[0, 0]
         bottom = resize_param[0, 1]
         left = resize_param[1, 0]

@@ -119,6 +119,21 @@ class ImageDataInput(DataInput):
 
             img = tf.pad(img, paddings, "SYMMETRIC")
             param = paddings
+        elif self.config_dict['ext']['resize_method'] == 'pad-fixed':
+
+            if resize_param is not None:
+                paddings = resize_param
+            else:
+                top = 13
+                bottom = 14
+
+                left = 13
+                right = 14
+
+                paddings = tf.reshape(tf.stack([top, bottom, left, right, 0, 0]), (3, 2))
+
+            img = tf.pad(img, paddings, "SYMMETRIC")
+            param = paddings
         else:
             img = tf.image.resize_images(img, (resize_dim, resize_dim),
                                          method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)

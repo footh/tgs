@@ -53,7 +53,7 @@ tf.app.flags.DEFINE_string(
     'File containing the configuration for this evaluation run')
 
 tf.app.flags.DEFINE_string(
-    'checkpoint_paths', None,
+    'checkpoint_path', None,
     'Full path to the checkpoint used to initialize the graph')
 
 tf.app.flags.DEFINE_boolean(

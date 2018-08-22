@@ -106,8 +106,8 @@ def ensemble(cfg, checkpoint_paths, augments):
                 tf.logging.info(f"Iteration {i}, id: {pred['id']}")
                 if divisor == 1:
                     ids.append(pred['id'].decode())
-                pred_ds = pp.downsample(pred['probabilities'], resize_method, pred[resize_method])
-                predictions[i] += reverse_augment(pred_ds, augment)
+                pred_rv = reverse_augment(pred['probabilities'], augment)
+                predictions[i] += pp.downsample(pred_rv, resize_method, pred[resize_method])
 
     predictions = predictions / divisor
 
@@ -136,9 +136,10 @@ def main(_):
     save_file_name = os.path.join(submission_dir, save_file_name)
 
     if FLAGS.save_method == 'prediction':
+        np.save(f'{save_file_name}-ids', ids)
         np.save(save_file_name, predictions)
     else:
-        submission(ids, predictions, f'{save_file_name}.csv')
+        submission(ids, predictions, f'{save_file_name}.csv', prob_thresh=0.5)
 
 
 tf.app.flags.DEFINE_string(
