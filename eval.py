@@ -14,8 +14,7 @@ def evaluate(cfg, checkpoint_path, hooks=None):
     dataset = data.DataInput.get(cfg.get('data.class'))(cfg.get('data'),
                                                         batch_size=cfg.get('batch_size'),
                                                         num_epochs=1,
-                                                        label_cnt=cfg.get('model.label_cnt'),
-                                                        augment=None)
+                                                        label_cnt=cfg.get('model.label_cnt'))
 
     tf.logging.info('Using model: %s' % cfg.get('model.class'))
     model = m.BaseModel.get(cfg.get('model.class'))(cfg.get('model'))
@@ -54,7 +53,7 @@ tf.app.flags.DEFINE_string(
     'File containing the configuration for this evaluation run')
 
 tf.app.flags.DEFINE_string(
-    'checkpoint_path', None,
+    'checkpoint_paths', None,
     'Full path to the checkpoint used to initialize the graph')
 
 tf.app.flags.DEFINE_boolean(

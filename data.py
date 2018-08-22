@@ -7,7 +7,7 @@ VGG_RGB_MEANS = [123.68, 116.78, 103.94]
 
 class DataInput(object):
 
-    def __init__(self, config_dict, batch_size=1024, num_epochs=999999, label_cnt=1, preprocess=True, augment=None):
+    def __init__(self, config_dict, batch_size=1024, num_epochs=999999, label_cnt=1, preprocess=True):
 
         assert config_dict is not None, "Config dictionary cannot be empty"
         # TODO: validate config entries?
@@ -17,7 +17,6 @@ class DataInput(object):
         self.num_epochs = num_epochs
         self.label_cnt = label_cnt
         self.preprocess = preprocess
-        self.augment = augment
 
     @staticmethod
     def get(class_name):
@@ -56,26 +55,30 @@ class ImageDataInput(DataInput):
     """
     Reads TFRecords image Examples.
     """
-    def augment_image(self, img, mask):
+    @staticmethod
+    def augment(img, mask, augment_dict=None):
         """
             Apply various random augmentations to image and mask
         """
+        if augment_dict is None:
+            return img, mask
+
         # Rotation
-        if 'rotation' in self.augment:
-            if self.augment['rotation'] is None:
+        if 'rotation' in augment_dict:
+            if augment_dict['rotation'] is None:
                 angle = tf.random_uniform([], minval=math.radians(-2), maxval=math.radians(2))
             else:
-                angle = math.radians(self.augment['rotation'])
+                angle = math.radians(augment_dict['rotation'])
             img = tf.contrib.image.rotate(img, angle)
             mask = tf.contrib.image.rotate(mask, angle)
 
         # Shearing
-        if 'shear' in self.augment:
-            if self.augment['shear'] is None:
+        if 'shear' in augment_dict:
+            if augment_dict['shear'] is None:
                 sx = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
                 sy = tf.divide(tf.cast(tf.random_uniform([], minval=90, maxval=101, dtype=tf.int32), tf.float32), tf.constant(100.))
             else:
-                sx, sy = self.augment['shear']
+                sx, sy = augment_dict['shear']
 
             s_vec = tf.stack([sx, 1. - sx, 0., 1. - sy, sy, 0., 0., 0.])
             s_vec = tf.expand_dims(s_vec, axis=0)
@@ -83,8 +86,8 @@ class ImageDataInput(DataInput):
             mask = tf.contrib.image.transform(mask, s_vec)
 
         # Flipping
-        if 'flip' in self.augment:
-            flip = self.augment['flip']
+        if 'flip' in augment_dict:
+            flip = augment_dict['flip']
             if flip is None:
                 flip = tf.random_uniform([], maxval=2, dtype=tf.int32)
             img = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_left_right(img), lambda: tf.identity(img))
@@ -123,7 +126,7 @@ class ImageDataInput(DataInput):
 
         return img, param
 
-    def input_fn(self, mode, ignore_augment=False):
+    def input_fn(self, mode, augment_dict=None):
         """
         Input function to be used in Estimator training
         (ignore_augment is used to ignore the augment dict for augmenting data. Useful for train_and_evaluate where
@@ -153,10 +156,10 @@ class ImageDataInput(DataInput):
                 mask = tf.image.decode_png(example['mask'])
                 mask, _ = self.resize(mask, resize_param)
             else:
-                mask = tf.constant([])
+                mask = tf.constant([[[0]]])
 
-            if not ignore_augment and self.augment is not None:
-                img, mask = self.augment_image(img, mask)
+            if augment_dict is not None:
+                img, mask = self.augment(img, mask, augment_dict)
 
             # Tensorflow image operations don't work with 0 channel grayscales. So need to do this here.
             if mode != tf.estimator.ModeKeys.PREDICT:

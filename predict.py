@@ -2,135 +2,160 @@ import tensorflow as tf
 from tgs import config
 from tgs import data
 from tgs import model as m
-from tgs import metric
+from tgs import post_process as pp
 import numpy as np
 import os
 import datetime
-import skimage
-from PIL import Image
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
 SUBMISSION_DIR = 'submission'
+IMG_DIM = 101
 
 
-def submission(predictions, submission_file, top_k=20):
+# Run-length encoding taken from https://www.kaggle.com/rakhlin/fast-run-length-encoding-python
+def rle_encoding(x):
+    dots = np.where(x.T.flatten() == 1)[0]
+
+    run_lengths = []
+    prev = -2
+    for b in dots:
+        if b > prev + 1:
+            run_lengths.extend((b + 1, 0))
+
+        run_lengths[-1] += 1
+        prev = b
+
+    return run_lengths
+
+
+def submission(ids, predictions, submission_file, prob_thresh=0.5):
     tf.logging.info('Writing submission file: %s' % submission_file)
     with tf.gfile.Open(submission_file, "w+") as f:
         f.write("id,rle_mask\n")
 
         for i, prediction in enumerate(predictions):
-            tf.logging.info('Processing record %s with id: %s' % (i + 1, prediction['ids']))
-            top_indices = np.argpartition(prediction['probabilities'], -top_k)[-top_k:]
-            preds = prediction['probabilities'][top_indices]
-            preds = list(zip(top_indices, preds))
-            preds = sorted(preds, key=lambda p: -p[1])
-            line = prediction['ids'].decode('utf-8') + ',' + ' '.join(
-                "%i %g" % (label, score) for (label, score) in preds) + "\n"
+            tf.logging.info(f'Processing record {i + 1} with id: {ids[i]}')
+
+            prediction = pp.threshold(prediction, prob_thresh=prob_thresh)
+            rle = rle_encoding(prediction)
+
+            line = f"{ids[i]}, {' '.join(map(str, rle))}\n"
 
             f.write(line)
             f.flush()
 
 
-def resize(pred, resize_method, resize_param):
-    if resize_method == 'pad':
-        top = resize_param[0, 0]
-        bottom = resize_param[0, 1]
-        left = resize_param[1, 0]
-        right = resize_param[1, 1]
-        r, c = pred.shape
-        return pred[top:r - bottom, left:c - right]
-    else:
-        # TODO: interpolated resize
-        return np.resize(pred, (resize_param, resize_param))
+def record_count(file_exp):
+    files = tf.gfile.Glob(file_exp)
+    total = 0
+    for f in files:
+        total += sum([1 for _ in tf.python_io.tf_record_iterator(f)])
+
+    return total
 
 
-def post_process(pred):
-    return pred > 0.5
+def reverse_augment(prediction, augment):
+    if 'flip' in augment:
+        if augment['flip']:
+            prediction = np.fliplr(prediction)
+
+    return prediction
 
 
-def mask(img_id):
-    path = os.path.join(FLAGS.mask_dir, f'{img_id}.png')
-    mask_gt = Image.open(path)
-    mask_gt = np.asarray(mask_gt)
-    return mask_gt
+def predict(cfg, checkpoint_path, augment=None, hooks=None):
 
+    tf.logging.info('Using data class: %s' % cfg.get('data.class'))
+    dataset = data.DataInput.get(cfg.get('data.class'))(cfg.get('data'),
+                                                        batch_size=cfg.get('batch_size'),
+                                                        num_epochs=1,
+                                                        label_cnt=cfg.get('model.label_cnt'))
 
-def main(_):
-    tf.logging.info("Reading config file...")
-    c = config.Config(FLAGS.config_file)
+    tf.logging.info('Using model: %s' % cfg.get('model.class'))
+    model = m.BaseModel.get(cfg.get('model.class'))(cfg.get('model'))
 
-    tf.logging.info('Using data class: %s' % c.get('data.class'))
-    dataset = data.DataInput.get(c.get('data.class'))(c.get('data'),
-                                                      batch_size=c.get('batch_size'),
-                                                      num_epochs=1,
-                                                      label_cnt=c.get('model.label_cnt'),
-                                                      augment=False)
-
-    tf.logging.info('Using model: %s' % c.get('model.class'))
-    model = m.BaseModel.get(c.get('model.class'))(c.get('model'))
-
-    resize_method = c.get('data.ext.resize_method')
-    params = {'l2_normalize': c.get('l2_normalize'),
+    resize_method = cfg.get('data.ext.resize_method')
+    params = {'l2_normalize': cfg.get('l2_normalize'),
               'resize_method': resize_method}
     estimator = tf.estimator.Estimator(model_fn=model.model_fn, config=None, params=params)
 
-    predictions = estimator.predict(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.PREDICT),
+    predictions = estimator.predict(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.PREDICT, augment),
                                     predict_keys=['id', 'probabilities', resize_method],
-                                    checkpoint_path=FLAGS.checkpoint_path)
+                                    checkpoint_path=checkpoint_path,
+                                    hooks=hooks)
 
-    if FLAGS.mask_dir is not None:
-        map_ious = []
-        for i, prediction in enumerate(predictions):
-            if i > 10:
-                break
-            # img_id = prediction['id'].decode()
-            # tf.logging.info(f"prediction id: {img_id}")
-            #
-            # mask_pred = prediction['probabilities']
-            # mask_pred = skimage.img_as_ubyte(mask_pred > 0.2)
-            # mask_gt = Image.open(f'tgs/data/train/masks/{img_id}.png')
-            # mask_gt = np.asarray(mask_gt.resize((128, 128))).astype(np.uint8)
-            # tf.logging.info(np.max(mask_pred.dtype))
-            # tf.logging.info(np.max(mask_gt.dtype))
-            # combo = np.concatenate((mask_pred, mask_gt), axis=-1)
-            #
-            # tf.gfile.MakeDirs('/tmp/tgs')
-            # Image.fromarray(combo).save(f"/tmp/tgs/{img_id}-p.png")
-            mask_pred = prediction['probabilities']
-            mask_pred = resize(mask_pred, resize_method, prediction[resize_method])
+    return predictions
 
-            img_id = prediction['id'].decode()
-            mask_gt = mask(img_id)
 
-            map_iou = metric.map_iou(mask_pred, mask_gt)
-            map_ious.append(map_iou)
-            tf.logging.info(map_iou)
+def ensemble(cfg, checkpoint_paths, augments):
 
+    resize_method = cfg.get('data.ext.resize_method')
+
+    total = record_count(cfg.get('data.test_file_pattern'))
+
+    divisor = 0
+    predictions = np.zeros((total, IMG_DIM, IMG_DIM), np.float32)
+    ids = []
+    for checkpoint_path in checkpoint_paths:
+        tf.logging.info(f'Checkpoint path: {checkpoint_path}')
+        for augment in augments:
+            tf.logging.info(f'Augment: {augment}')
+            divisor += 1
+            preds = predict(cfg, checkpoint_path, augment)
+            for i, pred in enumerate(preds):
+                tf.logging.info(f"Iteration {i}, id: {pred['id']}")
+                if divisor == 1:
+                    ids.append(pred['id'].decode())
+                pred_ds = pp.downsample(pred['probabilities'], resize_method, pred[resize_method])
+                predictions[i] += reverse_augment(pred_ds, augment)
+
+    predictions = predictions / divisor
+
+    return ids, predictions
+
+
+def main(_):
+    checkpoint_paths = [ckpt.strip() for ckpt in FLAGS.checkpoint_paths.split(',')]
+
+    augments = [
+        {'flip': 0},
+        {'flip': 1}
+    ]
+
+    tf.logging.info("Reading config file...")
+    cfg = config.Config(FLAGS.config_file)
+
+    ids, predictions = ensemble(cfg, checkpoint_paths, augments)
+
+    # Using the first checkpoint path as directory home to save files
+    submission_dir = os.path.join(os.path.dirname(checkpoint_paths[0]), SUBMISSION_DIR)
+    tf.gfile.MakeDirs(submission_dir)
+
+    save_file_name = f"{FLAGS.save_method}-{FLAGS.save_file_name}-" \
+                     f"{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    save_file_name = os.path.join(submission_dir, save_file_name)
+
+    if FLAGS.save_method == 'prediction':
+        np.save(save_file_name, predictions)
     else:
-        submission_dir = os.path.join(os.path.dirname(FLAGS.checkpoint_path), SUBMISSION_DIR)
-        tf.gfile.MakeDirs(submission_dir)
-        submission_file_name = 'submission-%s-%s.csv' % \
-                               (FLAGS.submission_file, datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
-        submission_file_name = os.path.join(submission_dir, submission_file_name)
-        # submission(predictions, submission_file_name, top_k=c.get('metric.gap.top_k'))
+        submission(ids, predictions, f'{save_file_name}.csv')
 
 
 tf.app.flags.DEFINE_string(
-    'submission_file', None,
-    'The name of the submission file to save (date will be automatically appended)')
+    'save_file_name', 'X',
+    'The name of the save file (date will be automatically appended)')
 
 tf.app.flags.DEFINE_string(
     'config_file', None,
     'File containing the configuration for this evaluation run')
 
 tf.app.flags.DEFINE_string(
-    'checkpoint_path', None,
-    'Full path to the checkpoint used to initialize the graph')
+    'checkpoint_paths', None,
+    'Comma delimted list of full paths to the checkpoints used to initialize the graph')
 
 tf.app.flags.DEFINE_string(
-    'mask_dir', None,
-    'Path to mask directory for evaluating results')
+    'save_method', 'submission',
+    'Method to save, either submission or prediction to save the submission file or raw predictions respectively')
 
 
 FLAGS = tf.app.flags.FLAGS
