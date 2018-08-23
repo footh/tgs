@@ -60,6 +60,20 @@ class BaseModel(object):
 
         return clipped_grads_and_vars
 
+    @staticmethod
+    def reduce_gradient(grads_and_vars, var_name='var_name', reduction=0.1):
+        reduced_grads_and_vars = []
+        for grad, var in grads_and_vars:
+            if grad is not None and var.name.find(var_name) >= 0:
+                if isinstance(grad, tf.IndexedSlices):
+                    tmp = reduction * grad.values
+                    grad = tf.IndexedSlices(tmp, grad.indices, grad.dense_shape)
+                else:
+                    grad = reduction * grad
+            reduced_grads_and_vars.append((grad, var))
+
+        return reduced_grads_and_vars
+
     def debug_graph(self, batch_size=512, feature_size=1152):
         """
         Useful debugging information for graphs
@@ -179,6 +193,12 @@ class BaseModel(object):
                     grads_and_vars = optimizer.compute_gradients(loss)
                     if params['clip_grad_norm'] is not None:
                         grads_and_vars = self.clip_gradient_norms(grads_and_vars, params['clip_grad_norm'])
+
+                    if params['reduce_grad'] is not None:
+                        grads_and_vars = self.reduce_gradient(grads_and_vars,
+                                                              var_name=params['reduce_grad'][0],
+                                                              reduction=params['reduce_grad'][1])
+
                     train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
                 if params['ema_decay'] is not None:

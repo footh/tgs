@@ -29,7 +29,7 @@ def rle_encoding(x):
     return run_lengths
 
 
-def submission(ids, predictions, submission_file, prob_thresh=0.5):
+def submission(ids, predictions, submission_file, prob_thresh=0.5, size=None):
     tf.logging.info('Writing submission file: %s' % submission_file)
     with tf.gfile.Open(submission_file, "w+") as f:
         f.write("id,rle_mask\n")
@@ -37,7 +37,7 @@ def submission(ids, predictions, submission_file, prob_thresh=0.5):
         for i, prediction in enumerate(predictions):
             tf.logging.info(f'Processing record {i + 1} with id: {ids[i]}')
 
-            prediction = pp.threshold(prediction, prob_thresh=prob_thresh)
+            prediction = pp.threshold(prediction, prob_thresh=prob_thresh, size=size)
             rle = rle_encoding(prediction)
 
             line = f"{ids[i]}, {' '.join(map(str, rle))}\n"
@@ -139,7 +139,7 @@ def main(_):
         np.save(f'{save_file_name}-ids', ids)
         np.save(save_file_name, predictions)
     else:
-        submission(ids, predictions, f'{save_file_name}.csv', prob_thresh=0.5)
+        submission(ids, predictions, f'{save_file_name}.csv', prob_thresh=0.5, size=20)
 
 
 tf.app.flags.DEFINE_string(

@@ -81,6 +81,7 @@ def build_estimator(cfg, model_dir):
               'adam_epsilon': cfg.get('optimizer.adam.epsilon'),
               'ema_decay': cfg.get('ema_decay'),
               'clip_grad_norm': cfg.get('clip_grad_norm'),
+              'reduce_grad': cfg.get('reduce_grad'),
               'map_iou_thresholds': cfg.get('metric.map_iou.thresholds'),
               'map_iou_predthresh': cfg.get('metric.map_iou.pred_thresh')}
 

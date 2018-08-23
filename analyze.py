@@ -61,7 +61,7 @@ def analyze(results, cfg, output_dir='.', bottom_k=10):
     loss = m.BaseModel.cross_entropy_loss(lbls_batch, preds_batch)
 
     metrics = []
-    thresholds = np.asarray(range(1, 10)) / 10.
+    thresholds = np.asarray(range(2, 20)) / 20.
     with tf.Session() as sess:
         for i in range(len(ids)):
             metrics_id = [sess.run(loss, feed_dict={preds: predictions[i], lbls: labels[i]})]
@@ -71,9 +71,12 @@ def analyze(results, cfg, output_dir='.', bottom_k=10):
 
             metrics.append(metrics_id)
 
+    metrics = np.asarray(metrics)
+
     output_dir = os.path.join(output_dir, ANALYZE_DIR)
     tf.gfile.MakeDirs(output_dir)
 
+    metric_means = np.mean(metrics, axis=0)
     with tf.gfile.Open(os.path.join(output_dir, 'metrics.csv'), "w+") as f:
         map_iou_header = ','.join([f'map_iou{t}' for t in thresholds])
         f.write(f'id,loss,{map_iou_header}\n')
@@ -81,8 +84,8 @@ def analyze(results, cfg, output_dir='.', bottom_k=10):
             line = f"{ids[i].decode('utf-8')},{','.join(map(str, metrics[i]))}\n"
             f.write(line)
             f.flush()
+        f.write(f"averages,{','.join(map(str, metric_means))}")
 
-    metrics = np.asarray(metrics)
     bottom_k_dir = os.path.join(output_dir, BOTTOM_K_DIR)
     tf.gfile.MakeDirs(bottom_k_dir)
     # Ordering by worst mean ious

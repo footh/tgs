@@ -1,3 +1,4 @@
+import numpy as np
 from skimage import transform
 from skimage import filters
 
@@ -17,9 +18,18 @@ def downsample(arr, resize_method, resize_param):
         return transform.resize(arr, (resize_param, resize_param), mode='constant', preserve_range=True)
 
 
-def threshold(preds, method=None, prob_thresh=0.5):
+def threshold(preds, method=None, prob_thresh=0.5, size=None):
+    """
+        Threshold the predictions based on a method. 'size' argument will remove all positives if total is below 'size'
+    """
     if method == 'otsu':
         thresh = filters.threshold_otsu(preds)
-        return preds > thresh
+        preds_thresh = preds > thresh
     else:
-        return preds > prob_thresh
+        preds_thresh = preds > prob_thresh
+
+    if size is not None and np.sum(preds_thresh) < size:
+        preds_thresh = preds_thresh & False
+
+    return preds_thresh
+
