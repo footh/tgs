@@ -22,7 +22,7 @@ def warm_start(cfg):
             with tf.gfile.Open(cfg.get('checkpoint.warm_start.var_map')) as f:
                 warm_start_map = json.load(f)
 
-        warm_start_var = None
+        warm_start_var = '.*'
         if cfg.get('checkpoint.warm_start.var_init') is not None:
             warm_start_var = cfg.get('checkpoint.warm_start.var_init')
 

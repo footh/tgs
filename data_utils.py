@@ -149,7 +149,7 @@ def train_stats(base_dir='tgs/data', img_dim=101, bins=10, generate=True):
     return train_df
 
 
-def build_sets(test_size, base_dir='tgs/data', train_stats_df=None, gen_stats=True, seed=1):
+def build_sets(test_size, base_dir='tgs/data', train_stats_df=None, gen_stats=True, seed=1, out_pf=''):
     """
         Build training and validation sets
     """
@@ -157,13 +157,13 @@ def build_sets(test_size, base_dir='tgs/data', train_stats_df=None, gen_stats=Tr
     if train_stats_df is None:
         train_stats_df = train_stats(base_dir=base_dir, generate=gen_stats)
 
-    id_train, id_val = ms.train_test_split(train_stats_df.index,
+    id_train, id_val = ms.train_test_split(train_stats_df.id,
                                            test_size=test_size, stratify=train_stats_df.coverage_bin, random_state=seed)
 
-    _remove_files(os.path.join(base_dir, 'train'))
-    _remove_files(os.path.join(base_dir, 'valid'))
+    _remove_files(os.path.join(base_dir, f'train{out_pf}'))
+    _remove_files(os.path.join(base_dir, f'valid{out_pf}'))
     for img_id in id_train:
-        _copy_train_file(img_id, 'train', base_dir=base_dir)
+        _copy_train_file(img_id, f'train{out_pf}', base_dir=base_dir)
 
     for img_id in id_val:
-        _copy_train_file(img_id, 'valid', base_dir=base_dir)
+        _copy_train_file(img_id, f'valid{out_pf}', base_dir=base_dir)

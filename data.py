@@ -72,6 +72,14 @@ class ImageDataInput(DataInput):
             img = tf.contrib.image.rotate(img, angle)
             mask = tf.contrib.image.rotate(mask, angle)
 
+        if 'rot90' in augment_dict:
+            if augment_dict['rot90'] is None:
+                rot = tf.random_uniform([], maxval=4, dtype=tf.int32)
+            else:
+                rot = augment_dict['rot90']
+            img = tf.image.rot90(img, k=rot)
+            mask = tf.image.rot90(mask, k=rot)
+
         # Shearing
         if 'shear' in augment_dict:
             if augment_dict['shear'] is None:

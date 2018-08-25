@@ -32,4 +32,3 @@ def threshold(preds, method=None, prob_thresh=0.5, size=None):
         preds_thresh = preds_thresh & False
 
     return preds_thresh
-

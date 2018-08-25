@@ -195,9 +195,11 @@ class BaseModel(object):
                         grads_and_vars = self.clip_gradient_norms(grads_and_vars, params['clip_grad_norm'])
 
                     if params['reduce_grad'] is not None:
+                        var_name, reduction = params['reduce_grad']
+                        tf.logging.info(f'Gradient reduction of {reduction} for variable names with {var_name}')
                         grads_and_vars = self.reduce_gradient(grads_and_vars,
-                                                              var_name=params['reduce_grad'][0],
-                                                              reduction=params['reduce_grad'][1])
+                                                              var_name=var_name,
+                                                              reduction=reduction)
 
                     train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
