@@ -43,12 +43,15 @@ def main(_):
     tf.logging.info("Reading config file...")
     cfg = config.Config(FLAGS.config_file)
 
-    if FLAGS.analyze:
+    if FLAGS.analyze is not None:
         analyze_hook = a.AnalyzeEvaluationHook()
         evaluate(cfg, FLAGS.checkpoint_path, hooks=[analyze_hook])
 
         output_dir = os.path.dirname(FLAGS.checkpoint_path)
-        a.analyze(analyze_hook.results_dict, cfg, output_dir=output_dir)
+        if FLAGS.analyze == 'unet':
+            a.analyze_unet(analyze_hook.results_dict, cfg, output_dir=output_dir)
+        elif FLAGS.analyze == 'mask':
+            a.analyze_mask(analyze_hook.results_dict, cfg, output_dir=output_dir)
     else:
         evaluate(cfg, FLAGS.checkpoint_path)
 
@@ -61,9 +64,9 @@ tf.app.flags.DEFINE_string(
     'checkpoint_path', None,
     'Full path to the checkpoint used to initialize the graph')
 
-tf.app.flags.DEFINE_boolean(
-    'analyze', False,
-    'Whether to run the evaluation analysis')
+tf.app.flags.DEFINE_string(
+    'analyze', None,
+    "'None', 'unet' or 'mask' to indicate whether and which type of analysis")
 
 FLAGS = tf.app.flags.FLAGS
 

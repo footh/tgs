@@ -102,6 +102,7 @@ def train_and_eval(cfg, dataset, estimator, hooks=None):
         Performs the estimator's train_and_evaluate method
     """
     # augment = {'rotation': None, 'shear': None, 'flip': None, 'rot90': None}
+    # augment = {'flip': None, 'rot90': None}
     augment = {'flip': None}
     train_spec = tf.estimator.TrainSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN, augment),
                                         max_steps=cfg.get('train_steps'),

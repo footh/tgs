@@ -31,7 +31,7 @@ def checkpoint_average(checkpoints, output_path):
             # print(f'var_values sum: {np.sum(var_values[name])}')
 
     # Building new variables and assign ops
-    global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int32)
+    global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)
     assign_ops = []
     for name, value in var_values.items():
         var = tf.get_variable(name, shape=value.shape, dtype=tf.float32)
