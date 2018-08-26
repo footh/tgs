@@ -59,9 +59,39 @@ def map_iou_metric(predictions, labels,
                    thresholds=(0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95),
                    pred_thresh=0.5):
     """
-    Returns a value operation and update operation for calculating the MAP at IoU thresholds in the style of a
-    tensorflow metric.
+        Returns a value operation and update operation for calculating the MAP at IoU thresholds in the style of a
+        tensorflow metric.
     """
     with tf.variable_scope('metrics/map_iou'):
         value_op = map_iou(predictions, labels, thresholds=thresholds, pred_thresh=pred_thresh)
+        return tf.metrics.mean(value_op)
+
+
+def accuracy(predictions, labels, pred_thresh=0.5):
+    """
+        Accuracy calculation that takes in probabilities or predictions. If probabilities, pred_thresh is used to turn
+        to predictions. Tensorflow has an accuracy metric, but it accumulates over the course of training (ie. is not
+        per batch)
+    """
+    if pred_thresh is not None:
+        preds = tf.greater_equal(predictions, pred_thresh)
+    else:
+        preds = tf.cast(predictions, tf.bool)
+
+    labels_bool = tf.cast(labels, tf.bool)
+
+    equality = tf.equal(preds, labels_bool)
+
+    result = tf.reduce_mean(tf.cast(equality, tf.float32))
+
+    return result
+
+
+def accuracy_metric(predictions, labels, pred_thresh=0.5):
+    """
+        Returns a value operation and update operation for calculating accuracy. Same as tensorflow metric really but
+        created this to be consistent in the model_fn
+    """
+    with tf.variable_scope('metrics/accuracy'):
+        value_op = accuracy(predictions, labels, pred_thresh=pred_thresh)
         return tf.metrics.mean(value_op)

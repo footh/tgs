@@ -1,0 +1,47 @@
+# Model parameters -----------------------------------
+model:
+  label_cnt: 1
+  class: 'ResnetMask'
+  ext:
+    encoder_l2_decay: 0.0001
+# Metric parameters ----------------------------------
+metric:
+  accuracy:
+    pred_thresh: 0.5
+# Data parameters ------------------------------------
+data:
+  class: 'ImageDataInputBinaryMask'
+  train_file_pattern: ['./tgs/data/train/tfrecord/tgs*']
+  valid_file_pattern: ['./tgs/data/valid/tfrecord/tgs*']
+  test_file_pattern: ['./tgs/data/test/tfrecord/tgs*']
+  shuf_buf: 5000
+  parallel_calls: 4
+  ext:
+    resize_dim: 128
+    resize_method: 'resize'
+# Base training parameters ---------------------------
+batch_size: 20
+train_steps: 3000
+valid_steps: 30
+learning_rate:
+  base: 0.0001
+  cosine_decay:
+    steps: 3000
+    m_mul: 0.50
+    alpha: 0.01
+l2_weight_decay: 0.00001
+l2_normalize:
+optimizer:
+  adam:
+    epsilon: 0.0001
+clip_grad_norm:
+reduce_grad: ['resnet_v1_50', 0.1]
+ema_decay:
+log_steps: 10
+checkpoint:
+  save_steps: 200
+  keep: 80
+  warm_start:
+    checkpoint_path: './tgs/training-runs/init/resnet_v1_50.ckpt'
+    var_map: './tgs/training-runs/init/resnet_v1_50-mask.json'
+    var_init: '.*resnet_v1_50.*'

@@ -19,8 +19,8 @@ class BaseModel(object):
         """
         Returns the model class object from the class name string passed in
         """
-        from tgs import unet_model
-        modules = [unet_model]
+        from tgs import unet_model, mask_model
+        modules = [unet_model, mask_model]
         classes = [getattr(module, class_name, None) for module in modules]
         klass = next(cls for cls in classes if cls)
         return klass
@@ -73,15 +73,6 @@ class BaseModel(object):
             reduced_grads_and_vars.append((grad, var))
 
         return reduced_grads_and_vars
-
-    def debug_graph(self, batch_size=512, feature_size=1152):
-        """
-        Useful debugging information for graphs
-        TODO: print shapes
-        """
-        inp = tf.placeholder(tf.float32, [batch_size, feature_size])
-        logits = self.build_model(inp)
-        return self.trainable_param_count(), logits
 
     def build_model(self, inp, mode, regularizer=None):
         """
@@ -142,10 +133,18 @@ class BaseModel(object):
             loss = loss + tf.losses.get_regularization_loss()
 
             if mode == tf.estimator.ModeKeys.EVAL:
-                map_iou_metric = metric.map_iou_metric(predicted_probs, labels,
-                                                       thresholds=params['map_iou_thresholds'],
-                                                       pred_thresh=params['map_iou_predthresh'])
-                metrics = {'map_iou': map_iou_metric}
+                metrics = {}
+
+                if 'accuracy' in params:
+                    accuracy_metric = metric.accuracy_metric(predicted_probs, labels,
+                                                             pred_thresh=params['accuracy']['pred_thresh'])
+                    metrics['accuracy'] = accuracy_metric
+
+                if 'map_iou' in params:
+                    map_iou_metric = metric.map_iou_metric(predicted_probs, labels,
+                                                           thresholds=params['map_iou']['thresholds'],
+                                                           pred_thresh=params['map_iou']['pred_thresh'])
+                    metrics['map_iou'] = map_iou_metric
 
                 spec = tf.estimator.EstimatorSpec(mode,
                                                   predictions=predictions,
@@ -175,15 +174,23 @@ class BaseModel(object):
                 else:
                     tf.logging.info('learning_rate: constant')
                     learning_rate = tf.constant(lr)
+
                 tf.summary.scalar('learning_rate', learning_rate)
+                log_hook_map = {'learning_rate': learning_rate}
 
-                map_iou = metric.map_iou(predicted_probs, labels,
-                                         thresholds=params['map_iou_thresholds'],
-                                         pred_thresh=params['map_iou_predthresh'])
-                tf.summary.scalar('map_iou', map_iou)
+                if 'accuracy' in params:
+                    accuracy = metric.accuracy(predicted_probs, labels, pred_thresh=params['accuracy']['pred_thresh'])
+                    tf.summary.scalar('accuracy', accuracy)
+                    log_hook_map['accuracy'] = accuracy
 
-                logging_hook = tf.train.LoggingTensorHook({'map_iou': map_iou, 'learning_rate': learning_rate},
-                                                          every_n_iter=10)
+                if 'map_iou' in params:
+                    map_iou = metric.map_iou(predicted_probs, labels,
+                                             thresholds=params['map_iou']['thresholds'],
+                                             pred_thresh=params['map_iou']['predthresh'])
+                    tf.summary.scalar('map_iou', map_iou)
+                    log_hook_map['map_iou'] = map_iou
+
+                logging_hook = tf.train.LoggingTensorHook(log_hook_map, every_n_iter=10)
 
                 adam_epsilon = 1e-8 if params['adam_epsilon'] is None else params['adam_epsilon']
                 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, epsilon=adam_epsilon)

@@ -21,9 +21,14 @@ def evaluate(cfg, checkpoint_path, hooks=None):
 
     resize_method = cfg.get('data.ext.resize_method')
     params = {'l2_normalize': cfg.get('l2_normalize'),
-              'map_iou_thresholds': cfg.get('metric.map_iou.thresholds'),
-              'map_iou_predthresh': cfg.get('metric.map_iou.pred_thresh'),
               'resize_method': resize_method}
+
+    if cfg.get('metric.accuracy') is not None:
+        params['accuracy'] = cfg.get('metric.accuracy')
+
+    if cfg.get('metric.map_iou') is not None:
+        params['map_iou'] = cfg.get('metric.map_iou')
+
     estimator = tf.estimator.Estimator(model_fn=model.model_fn, config=None, params=params)
 
     evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),

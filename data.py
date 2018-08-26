@@ -210,3 +210,17 @@ class ImageDataInput(DataInput):
             self.config_dict['ext']['resize_method']: resize_param
         }
         return image_dict, mask
+
+
+class ImageDataInputBinaryMask(ImageDataInput):
+    """
+    Reads TFRecords image Examples. Returns mask as a binary where True means blank mask and False is otherwise.
+    """
+
+    def input_fn(self, mode, augment_dict=None):
+        image_dict, mask = super().input_fn(mode=mode, augment_dict=augment_dict)
+        mask = tf.reduce_sum(mask, axis=[1, 2])
+        mask = tf.expand_dims(tf.equal(mask, 0), axis=-1)
+        mask = tf.cast(mask, tf.float32)
+
+        return image_dict, mask

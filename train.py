@@ -81,9 +81,13 @@ def build_estimator(cfg, model_dir):
               'adam_epsilon': cfg.get('optimizer.adam.epsilon'),
               'ema_decay': cfg.get('ema_decay'),
               'clip_grad_norm': cfg.get('clip_grad_norm'),
-              'reduce_grad': cfg.get('reduce_grad'),
-              'map_iou_thresholds': cfg.get('metric.map_iou.thresholds'),
-              'map_iou_predthresh': cfg.get('metric.map_iou.pred_thresh')}
+              'reduce_grad': cfg.get('reduce_grad')}
+
+    if cfg.get('metric.accuracy') is not None:
+        params['accuracy'] = cfg.get('metric.accuracy')
+
+    if cfg.get('metric.map_iou') is not None:
+        params['map_iou'] = cfg.get('metric.map_iou')
 
     estimator = tf.estimator.Estimator(model_fn=model.model_fn,
                                        config=run_config,
@@ -97,7 +101,7 @@ def train_and_eval(cfg, dataset, estimator, hooks=None):
     """
         Performs the estimator's train_and_evaluate method
     """
-    # augment = {'rotation': None, 'shear': None, 'flip': None}
+    # augment = {'rotation': None, 'shear': None, 'flip': None, 'rot90': None}
     augment = {'flip': None}
     train_spec = tf.estimator.TrainSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN, augment),
                                         max_steps=cfg.get('train_steps'),
