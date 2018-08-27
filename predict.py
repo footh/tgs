@@ -87,7 +87,7 @@ def predict(cfg, checkpoint_path, augment=None, hooks=None):
     return predictions
 
 
-def ensemble(cfg, checkpoint_paths, augments):
+def ensemble_unet(cfg, checkpoint_paths, augments):
 
     resize_method = cfg.get('data.ext.resize_method')
 
@@ -97,13 +97,13 @@ def ensemble(cfg, checkpoint_paths, augments):
     predictions = np.zeros((total, IMG_DIM, IMG_DIM), np.float32)
     ids = []
     for checkpoint_path in checkpoint_paths:
-        tf.logging.info(f'Checkpoint path: {checkpoint_path}')
+        tf.logging.info(f'Unet checkpoint path: {checkpoint_path}')
         for augment in augments:
             tf.logging.info(f'Augment: {augment}')
             divisor += 1
             preds = predict(cfg, checkpoint_path, augment)
             for i, pred in enumerate(preds):
-                tf.logging.info(f"Iteration {i}, id: {pred['id']}")
+                tf.logging.info(f"Unet iteration {i}, id: {pred['id']}")
                 if divisor == 1:
                     ids.append(pred['id'].decode())
                 pred_rv = reverse_augment(pred['probabilities'], augment)
@@ -114,7 +114,37 @@ def ensemble(cfg, checkpoint_paths, augments):
     return ids, predictions
 
 
+def ensemble_mask(cfg, checkpoint_paths, augments):
+
+    total = record_count(cfg.get('data.test_file_pattern'))
+
+    divisor = 0
+    predictions = np.zeros(total, np.float32)
+    ids = []
+    for checkpoint_path in checkpoint_paths:
+        tf.logging.info(f'Mask checkpoint path: {checkpoint_path}')
+        for augment in augments:
+            tf.logging.info(f'Augment: {augment}')
+            divisor += 1
+            preds = predict(cfg, checkpoint_path, augment)
+            for i, pred in enumerate(preds):
+                tf.logging.info(f"Mask iteration {i}, id: {pred['id']}")
+                if divisor == 1:
+                    ids.append(pred['id'].decode())
+                predictions[i] += pred['probabilities'][0]
+
+    predictions = predictions / divisor
+
+    return ids, predictions
+
+
+# TODO: parameterize these
+PROB_THRESH = 0.5
+SIZE = 20
+
+
 def main(_):
+
     checkpoint_paths = [ckpt.strip() for ckpt in FLAGS.checkpoint_paths.split(',')]
 
     augments = [
@@ -122,10 +152,26 @@ def main(_):
         {'flip': 1}
     ]
 
-    tf.logging.info("Reading config file...")
+    tf.logging.info("Reading Unet config file...")
     cfg = config.Config(FLAGS.config_file)
 
-    ids, predictions = ensemble(cfg, checkpoint_paths, augments)
+    ids, predictions = ensemble_unet(cfg, checkpoint_paths, augments)
+
+    if FLAGS.mask_checkpoint_paths is not None and FLAGS.mask_config_file is not None:
+        mask_checkpoint_paths = [ckpt.strip() for ckpt in FLAGS.mask_checkpoint_paths.split(',')]
+
+        tf.logging.info("Reading Mask config file...")
+        cfg_mask = config.Config(FLAGS.mask_config_file)
+
+        ids_mask, predictions_mask = ensemble_mask(cfg_mask, mask_checkpoint_paths, augments)
+
+        # Make sure the ids are the same!
+        assert(np.array_equal(ids, ids_mask))
+
+        predictions_mask_thresh = pp.threshold(predictions_mask, prob_thresh=PROB_THRESH)
+        predictions_mask_thresh = predictions_mask_thresh.reshape(predictions_mask_thresh.shape[0], 1, 1)
+
+        predictions = predictions * ~predictions_mask_thresh
 
     # Using the first checkpoint path as directory home to save files
     submission_dir = os.path.join(os.path.dirname(checkpoint_paths[0]), SUBMISSION_DIR)
@@ -139,7 +185,7 @@ def main(_):
         np.save(f'{save_file_name}-ids', ids)
         np.save(save_file_name, predictions)
     else:
-        submission(ids, predictions, f'{save_file_name}.csv', prob_thresh=0.5, size=20)
+        submission(ids, predictions, f'{save_file_name}.csv', prob_thresh=PROB_THRESH, size=SIZE)
 
 
 tf.app.flags.DEFINE_string(
@@ -148,11 +194,19 @@ tf.app.flags.DEFINE_string(
 
 tf.app.flags.DEFINE_string(
     'config_file', None,
-    'File containing the configuration for this evaluation run')
+    'File containing the unet configuration for this evaluation run')
 
 tf.app.flags.DEFINE_string(
     'checkpoint_paths', None,
     'Comma delimted list of full paths to the checkpoints used to initialize the graph')
+
+tf.app.flags.DEFINE_string(
+    'mask_config_file', None,
+    'File containing the mask configuration for this evaluation run')
+
+tf.app.flags.DEFINE_string(
+    'mask_checkpoint_paths', None,
+    'Comma delimted list of full paths to the mask checkpoints used to initialize the graph')
 
 tf.app.flags.DEFINE_string(
     'save_method', 'submission',
