@@ -39,6 +39,11 @@ def _copy_train_file(img_id, src, base_dir='tgs/data'):
     shutil.copy2(source, dest)
 
 
+def _copy_train_files(img_ids, src, base_dir='tgs/data'):
+    for img_id in img_ids:
+        _copy_train_file(img_id, src, base_dir=base_dir)
+
+
 def _byteslist_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=value))
 
@@ -167,3 +172,35 @@ def build_sets(test_size, base_dir='tgs/data', train_stats_df=None, gen_stats=Tr
 
     for img_id in id_val:
         _copy_train_file(img_id, f'valid{out_pf}', base_dir=base_dir)
+
+
+def kfolds(splits, base_dir='tgs/data', train_stats_df=None, gen_stats=False, seed=1):
+    """
+        Split the data into stratified folds and copies them to the appropriate directories
+    """
+    if train_stats_df is None:
+        train_stats_df = train_stats(base_dir=base_dir, generate=gen_stats)
+
+    train_dir = os.path.join(base_dir, 'train-f')
+    valid_dir = os.path.join(base_dir, 'valid-f')
+    tf.logging.info(f'Removing previous folds...')
+    if os.path.exists(train_dir) and os.path.isdir(train_dir):
+        shutil.rmtree(train_dir)
+    if os.path.exists(valid_dir) and os.path.isdir(valid_dir):
+        shutil.rmtree(valid_dir)
+
+    ids = np.asarray(train_stats_df.id)
+    classes = np.asarray(train_stats_df.coverage_bin)
+
+    skf = ms.StratifiedKFold(splits, random_state=seed)
+    for fold, (train_idx, val_idx) in enumerate(skf.split(ids, classes)):
+
+        train_ids = ids[train_idx]
+        train_dir = os.path.join('train-f', str(fold + 1))
+        _copy_train_files(train_ids, train_dir, base_dir=base_dir)
+        to_tfrecord(os.path.join(base_dir, train_dir, 'images', '*.png'), shards=len(train_ids) // 100)
+
+        val_ids = ids[val_idx]
+        val_dir = os.path.join('valid-f', str(fold + 1))
+        _copy_train_files(val_ids, val_dir, base_dir=base_dir)
+        to_tfrecord(os.path.join(base_dir, val_dir, 'images', '*.png'), shards=len(val_ids) // 100)
