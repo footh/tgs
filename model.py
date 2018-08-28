@@ -186,7 +186,7 @@ class BaseModel(object):
                 if 'map_iou' in params:
                     map_iou = metric.map_iou(predicted_probs, labels,
                                              thresholds=params['map_iou']['thresholds'],
-                                             pred_thresh=params['map_iou']['predthresh'])
+                                             pred_thresh=params['map_iou']['pred_thresh'])
                     tf.summary.scalar('map_iou', map_iou)
                     log_hook_map['map_iou'] = map_iou
 
