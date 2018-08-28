@@ -147,16 +147,35 @@ def train_stats(base_dir='tgs/data', img_dim=101, bins=10, generate=True):
 
         train_df["coverage_bin"] = train_df.coverage.map(cov_to_bin)
 
-        train_df.to_csv(f'{base_dir}/train_stats.csv')
+        train_df.to_csv(f'{base_dir}/train_stats_master.csv')
     else:
-        train_df = pd.read_csv(f'{base_dir}/train_stats.csv')
+        train_df = pd.read_csv(f'{base_dir}/train_stats_master.csv')
 
     return train_df
 
 
+def prune_train_stats(id_files, base_dir='tgs/data', out_pf='X'):
+    """
+        Takes a list of id files and prunes them from the train_stats file
+    """
+    train_stats_df = train_stats(base_dir=base_dir, generate=False)
+
+    ids = []
+    for id_file in id_files:
+        id_df = pd.read_csv(id_file, header=None)
+        ids.extend(id_df[0])
+
+    ids = np.unique(ids)
+
+    idx_del = train_stats_df[train_stats_df.id.isin(ids)].index
+    train_stats_df_pruned = train_stats_df.drop(idx_del)
+
+    train_stats_df_pruned.to_csv(f'{base_dir}/train_stats_{out_pf}.csv', index=False)
+
+
 def build_sets(test_size, base_dir='tgs/data', train_stats_df=None, gen_stats=True, seed=1, out_pf=''):
     """
-        Build training and validation sets
+        Build training and validation sets. Note: nukes the 'train' and 'valid' (plus out_pf)
     """
 
     if train_stats_df is None:
@@ -165,18 +184,26 @@ def build_sets(test_size, base_dir='tgs/data', train_stats_df=None, gen_stats=Tr
     id_train, id_val = ms.train_test_split(train_stats_df.id,
                                            test_size=test_size, stratify=train_stats_df.coverage_bin, random_state=seed)
 
-    _remove_files(os.path.join(base_dir, f'train{out_pf}'))
-    _remove_files(os.path.join(base_dir, f'valid{out_pf}'))
+    train_dir = os.path.join(base_dir, f'train{out_pf}')
+    valid_dir = os.path.join(base_dir, f'valid{out_pf}')
+    if os.path.exists(train_dir) and os.path.isdir(train_dir):
+        shutil.rmtree(train_dir)
+    if os.path.exists(valid_dir) and os.path.isdir(valid_dir):
+        shutil.rmtree(valid_dir)
+
     for img_id in id_train:
         _copy_train_file(img_id, f'train{out_pf}', base_dir=base_dir)
+    to_tfrecord(os.path.join(train_dir, 'images', '*.png'), shards=len(id_train) // 100)
 
     for img_id in id_val:
         _copy_train_file(img_id, f'valid{out_pf}', base_dir=base_dir)
+    to_tfrecord(os.path.join(valid_dir, 'images', '*.png'), shards=len(id_val) // 100)
 
 
 def kfolds(splits, base_dir='tgs/data', train_stats_df=None, gen_stats=False, seed=1):
     """
-        Split the data into stratified folds and copies them to the appropriate directories
+        Splits the data into stratified folds and copies them to the appropriate directories.
+        Note: this nukes the 'train-f' and 'valid-f' directories
     """
     if train_stats_df is None:
         train_stats_df = train_stats(base_dir=base_dir, generate=gen_stats)
