@@ -1,8 +1,9 @@
 # Model parameters -----------------------------------
 model:
   label_cnt: 1
-  class: 'ResnetUnet2'
+  class: 'ResnetV1Unet'
   ext:
+    img_size: 128
     encoder_l2_decay: 0.0001
     process_channels: 256
 # Metric parameters ----------------------------------
