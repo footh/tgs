@@ -103,7 +103,7 @@ class ImageDataInput(DataInput):
 
         return img, mask
 
-    def resize(self, img, resize_param=None, min_padding=5):
+    def resize(self, img, resize_param=None):
         """
             Resize an image using various methods
         """
@@ -111,6 +111,10 @@ class ImageDataInput(DataInput):
         orig_dim = tf.shape(img)[0]
 
         if self.config_dict['ext']['resize_method'] == 'pad':
+            min_padding = 5
+            if 'min_padding' in self.config_dict['ext'] and self.config_dict['ext']['min_padding'] is not None:
+                min_padding = self.config_dict['ext']['min_padding']
+
             diff = resize_dim - orig_dim
             pad_var = diff - (min_padding * 2)
 
@@ -125,22 +129,26 @@ class ImageDataInput(DataInput):
 
                 paddings = tf.reshape(tf.stack([top, bottom, left, right, 0, 0]), (3, 2))
 
-            img = tf.pad(img, paddings, "SYMMETRIC")
+            img = tf.pad(img, paddings, "REFLECT")
             param = paddings
         elif self.config_dict['ext']['resize_method'] == 'pad-fixed':
 
             if resize_param is not None:
                 paddings = resize_param
             else:
-                top = 13
-                bottom = 14
+                diff = resize_dim - orig_dim
+                dim1 = diff // 2
+                dim2 = diff - dim1
 
-                left = 13
-                right = 14
+                top = dim1
+                bottom = dim2
+
+                left = dim1
+                right = dim2
 
                 paddings = tf.reshape(tf.stack([top, bottom, left, right, 0, 0]), (3, 2))
 
-            img = tf.pad(img, paddings, "SYMMETRIC")
+            img = tf.pad(img, paddings, "REFLECT")
             param = paddings
         else:
             img = tf.image.resize_images(img, (resize_dim, resize_dim),
