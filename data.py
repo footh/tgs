@@ -131,25 +131,6 @@ class ImageDataInput(DataInput):
 
             img = tf.pad(img, paddings, "REFLECT")
             param = paddings
-        elif self.config_dict['ext']['resize_method'] == 'pad-fixed':
-
-            if resize_param is not None:
-                paddings = resize_param
-            else:
-                diff = resize_dim - orig_dim
-                dim1 = diff // 2
-                dim2 = diff - dim1
-
-                top = dim1
-                bottom = dim2
-
-                left = dim1
-                right = dim2
-
-                paddings = tf.reshape(tf.stack([top, bottom, left, right, 0, 0]), (3, 2))
-
-            img = tf.pad(img, paddings, "REFLECT")
-            param = paddings
         else:
             img = tf.image.resize_images(img, (resize_dim, resize_dim),
                                          method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
@@ -157,7 +138,7 @@ class ImageDataInput(DataInput):
 
         return img, param
 
-    def input_fn(self, mode, augment_dict=None):
+    def input_fn(self, mode, augment_dict=None, resize_param=None):
         """
         Input function to be used in Estimator training
         (ignore_augment is used to ignore the augment dict for augmenting data. Useful for train_and_evaluate where
@@ -181,11 +162,11 @@ class ImageDataInput(DataInput):
             example = tf.parse_single_example(record, feature_map)
 
             img = tf.image.decode_png(example['img'])
-            img, resize_param = self.resize(img)
+            img, resize_param_actual = self.resize(img, resize_param)
 
             if mode != tf.estimator.ModeKeys.PREDICT:
                 mask = tf.image.decode_png(example['mask'])
-                mask, _ = self.resize(mask, resize_param)
+                mask, _ = self.resize(mask, resize_param_actual)
             else:
                 mask = tf.constant([[[0]]])
 
@@ -200,7 +181,7 @@ class ImageDataInput(DataInput):
                 img = tf.subtract(tf.cast(img, tf.float32), VGG_RGB_MEANS)
                 mask = tf.divide(tf.cast(mask, tf.float32), 255.)
 
-            return example['id'], img, mask, resize_param
+            return example['id'], img, mask, resize_param_actual
 
         # Use `Dataset.map()` to build a pair of a feature dictionary and a label
         # tensor for each example.
@@ -225,10 +206,63 @@ class ImageDataInputBinaryMask(ImageDataInput):
     Reads TFRecords image Examples. Returns mask as a binary where True means blank mask and False is otherwise.
     """
 
-    def input_fn(self, mode, augment_dict=None):
-        image_dict, mask = super().input_fn(mode=mode, augment_dict=augment_dict)
+    def input_fn(self, mode, augment_dict=None, resize_param=None):
+        image_dict, mask = super().input_fn(mode=mode, augment_dict=augment_dict, resize_param=resize_param)
         mask = tf.reduce_sum(mask, axis=[1, 2])
         mask = tf.expand_dims(tf.equal(mask, 0), axis=-1)
         mask = tf.cast(mask, tf.float32)
 
+        return image_dict, mask
+
+
+class PredictionDataInput(DataInput):
+
+    def input_fn(self, mode, augment_dict=None):
+        """
+        Input function to be used in Estimator training
+        """
+        dataset = self.build_dataset(mode)
+
+        # Use `tf.parse_single_example()` to extract data from a `tf.Example`
+        # protocol buffer, and perform any additional per-record preprocessing.
+        def parser(record, mode):
+
+            # Build feature map to parse example
+            feature_map = {
+                'id': tf.FixedLenFeature([], tf.string),
+                'pred': tf.FixedLenFeature([], tf.float32)
+            }
+
+            if mode != tf.estimator.ModeKeys.PREDICT:
+                feature_map['label'] = tf.FixedLenFeature([], tf.float32)
+
+            example = tf.parse_single_example(record, feature_map)
+
+            pred = example['pred']
+
+            if mode != tf.estimator.ModeKeys.PREDICT:
+                label = example['label']
+            else:
+                label = tf.constant([[[0]]])
+
+            # if augment_dict is not None:
+            #     pred = self.augment(img, mask, augment_dict)
+
+            return example['id'], pred, label
+
+        # Use `Dataset.map()` to build a pair of a feature dictionary and a label
+        # tensor for each example.
+        dataset = dataset.map(lambda rec: parser(rec, mode), num_parallel_calls=self.config_dict['parallel_calls'])
+        if mode == tf.estimator.ModeKeys.TRAIN:
+            dataset = dataset.shuffle(buffer_size=self.config_dict['shuf_buf'])
+        dataset = dataset.batch(self.batch_size)
+        dataset = dataset.repeat(self.num_epochs)
+        iterator = dataset.make_one_shot_iterator()
+
+        img_id, img, mask, resize_param = iterator.get_next()
+        image_dict = {
+            'id': img_id,
+            'img': img,
+            self.config_dict['ext']['resize_method']: resize_param
+        }
         return image_dict, mask

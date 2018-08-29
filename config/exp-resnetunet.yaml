@@ -22,6 +22,7 @@ data:
   ext:
     resize_dim: 128
     resize_method: 'pad'
+    min_padding: 5
 # Base training parameters ---------------------------
 batch_size: 20
 train_steps: 6000
