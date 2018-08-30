@@ -178,7 +178,14 @@ class ImageDataInput(DataInput):
                 mask = tf.squeeze(mask, axis=-1)
 
             if self.preprocess:
-                img = tf.subtract(tf.cast(img, tf.float32), VGG_RGB_MEANS)
+                if 'preprocess' in self.config_dict['ext'] and self.config_dict['ext']['preprocess'] == 'inception':
+                    img = tf.image.convert_image_dtype(img, tf.float32)
+                    # Need to make this a 3d list to infer channel shape
+                    img = tf.subtract(img, [0.5, 0.5, 0.5])
+                    img = tf.multiply(img, [2.0, 2.0, 2.0])
+                else:
+                    img = tf.subtract(tf.cast(img, tf.float32), VGG_RGB_MEANS)
+
                 mask = tf.divide(tf.cast(mask, tf.float32), 255.)
 
             return example['id'], img, mask, resize_param_actual

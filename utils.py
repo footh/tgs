@@ -79,7 +79,15 @@ def build_warm_start_map(checkpoint_path, prefix):
     for name, shape in var_list:
         # Removing global step variable
         # Removing training-specific moving statistics for batch norm
-        if not name.startswith('global_step') and name.find('BatchNorm/moving') == -1:
+        # Removing any exponential moving average value
+        # Removing any momentum values
+        # Removing moving mean and variance
+        if not name.startswith('global_step') \
+           and name.find('BatchNorm/moving') == -1 \
+           and name.find('ExponentialMovingAverage') == -1 \
+           and name.find('Momentum') == -1 \
+           and name.find('moving_mean') == -1 \
+           and name.find('moving_variance') == -1:
             key = f'{prefix}{name}'
             var_prefix_dict[key] = name
 

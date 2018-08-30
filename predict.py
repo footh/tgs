@@ -195,9 +195,8 @@ def run_prediction(save_file_name, checkpoint_paths, cfg, checkpoint_paths_mask=
 
 
 def run_submission(save_file_name, checkpoint_paths):
-
-    name, ext = os.path.split(os.path.basename(checkpoint_paths[0]))
-    ids_file = os.path.join(os.path.dirname(checkpoint_paths[0]), f'{name}-ids.{ext}')
+    name, ext = os.path.splitext(os.path.basename(checkpoint_paths[0]))
+    ids_file = os.path.join(os.path.dirname(checkpoint_paths[0]), f'{name}-ids{ext}')
     ids = np.load(ids_file)
 
     predictions = np.load(checkpoint_paths[0])
