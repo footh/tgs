@@ -9,7 +9,11 @@ import datetime
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
+TRAIN_HOME_DIR = 'tgs/training-runs'
+PREDICTION_DIR = 'tgs/predictions'
+PREDICTION_RUN_DIR = 'run'
 SUBMISSION_DIR = 'submission'
+IDS_FILE = 'ids-test.npy'
 # TODO: parameterize these
 IMG_DIM = 101
 PROB_THRESH = 0.4
@@ -198,37 +202,33 @@ def run_prediction(save_file_name, checkpoint_paths, cfg, checkpoint_paths_mask=
 
         predictions = predictions * ~predictions_mask_thresh
 
-    # Using the first checkpoint path as directory home to save files
-    submission_dir = os.path.join(os.path.dirname(checkpoint_paths[0]), SUBMISSION_DIR)
-    tf.gfile.MakeDirs(submission_dir)
-
-    save_file = os.path.join(submission_dir, save_file_name)
+    save_file = os.path.join(PREDICTION_DIR, save_file_name)
 
     np.save(f'{save_file}-ids', ids)
     np.save(save_file, predictions)
 
 
-def run_submission(save_file_name, checkpoint_paths):
-    name, ext = os.path.splitext(os.path.basename(checkpoint_paths[0]))
-    ids_file = os.path.join(os.path.dirname(checkpoint_paths[0]), f'{name}-ids{ext}')
-    ids = np.load(ids_file)
+def run_submission(save_file_name):
+    run_dir = os.path.join(PREDICTION_DIR, PREDICTION_RUN_DIR)
+    submission_dir = os.path.join(PREDICTION_DIR, SUBMISSION_DIR)
 
-    predictions = np.load(checkpoint_paths[0])
+    ids = np.load(os.path.join(PREDICTION_DIR, IDS_FILE))
+
+    pred_files = tf.gfile.Glob(os.path.join(run_dir, '*.npy'))
+    assert(len(pred_files) > 0)
+
+    predictions = np.load(pred_files[0])
     divisor = 1
-    tf.logging.info(f'Added {checkpoint_paths[0]}')
+    tf.logging.info(f'Added {pred_files[0]}')
     tf.logging.info(f'Divisor: {divisor}')
-    if len(checkpoint_paths) > 1:
-        for i in range(1, len(checkpoint_paths)):
-            predictions += np.load(checkpoint_paths[i])
+    if len(pred_files) > 1:
+        for i in range(1, len(pred_files)):
+            predictions += np.load(pred_files[i])
             divisor += 1
-            tf.logging.info(f'Added {checkpoint_paths[i]}')
+            tf.logging.info(f'Added {pred_files[i]}')
             tf.logging.info(f'Divisor: {divisor}')
 
     predictions = predictions / divisor
-
-    # Using the first checkpoint path as directory home to save files
-    submission_dir = os.path.dirname(checkpoint_paths[0])
-    tf.gfile.MakeDirs(submission_dir)
 
     save_file = os.path.join(submission_dir, save_file_name)
 
@@ -239,12 +239,12 @@ def main(_):
     save_file_name = f"{FLAGS.save_method}-{FLAGS.save_file_name}-" \
                      f"{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
-    checkpoint_paths = [ckpt.strip() for ckpt in FLAGS.checkpoint_paths.split(',')]
-    assert(len(checkpoint_paths) > 0)
-
     if FLAGS.save_method == 'prediction':
         tf.logging.info("Reading Unet config file...")
         cfg = config.Config(FLAGS.config_file)
+
+        checkpoint_paths = [os.path.join(TRAIN_HOME_DIR, ckpt.strip()) for ckpt in FLAGS.checkpoint_paths.split(',')]
+        assert (len(checkpoint_paths) > 0)
 
         checkpoint_paths_mask = None
         cfg_mask = None
@@ -256,7 +256,7 @@ def main(_):
 
         run_prediction(save_file_name, checkpoint_paths, cfg, checkpoint_paths_mask, cfg_mask)
     else:
-        run_submission(save_file_name, checkpoint_paths)
+        run_submission(save_file_name)
 
 
 tf.app.flags.DEFINE_string(
