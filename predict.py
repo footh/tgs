@@ -12,7 +12,7 @@ tf.logging.set_verbosity(tf.logging.INFO)
 SUBMISSION_DIR = 'submission'
 # TODO: parameterize these
 IMG_DIM = 101
-PROB_THRESH = 0.5
+PROB_THRESH = 0.4
 SIZE = 20
 
 
@@ -59,11 +59,25 @@ def build_resizes(cfg):
     max_padding = diff - min_padding
     mid_padding = diff // 2
 
+    # resizes = [
+    #     [[min_padding, max_padding], [min_padding, max_padding], [0, 0]],
+    #     [[max_padding, min_padding], [min_padding, max_padding], [0, 0]],
+    #     [[min_padding, max_padding], [max_padding, min_padding], [0, 0]],
+    #     [[max_padding, min_padding], [max_padding, min_padding], [0, 0]],
+    #     [[mid_padding, diff - mid_padding], [mid_padding, diff - mid_padding], [0, 0]]
+    # ]
+
+    # resizes = [
+    #     [[min_padding, max_padding], [mid_padding, diff - mid_padding], [0, 0]],
+    #     [[max_padding, min_padding], [mid_padding, diff - mid_padding], [0, 0]]
+    # ]
+
+    # resizes = [
+    #     [[mid_padding, diff - mid_padding], [min_padding, max_padding], [0, 0]],
+    #     [[mid_padding, diff - mid_padding], [max_padding, min_padding], [0, 0]]
+    # ]
+
     resizes = [
-        [[min_padding, max_padding], [min_padding, max_padding], [0, 0]],
-        [[max_padding, min_padding], [min_padding, max_padding], [0, 0]],
-        [[min_padding, max_padding], [max_padding, min_padding], [0, 0]],
-        [[max_padding, min_padding], [max_padding, min_padding], [0, 0]],
         [[mid_padding, diff - mid_padding], [mid_padding, diff - mid_padding], [0, 0]]
     ]
 
@@ -201,10 +215,14 @@ def run_submission(save_file_name, checkpoint_paths):
 
     predictions = np.load(checkpoint_paths[0])
     divisor = 1
+    tf.logging.info(f'Added {checkpoint_paths[0]}')
+    tf.logging.info(f'Divisor: {divisor}')
     if len(checkpoint_paths) > 1:
         for i in range(1, len(checkpoint_paths)):
             predictions += np.load(checkpoint_paths[i])
             divisor += 1
+            tf.logging.info(f'Added {checkpoint_paths[i]}')
+            tf.logging.info(f'Divisor: {divisor}')
 
     predictions = predictions / divisor
 

@@ -8,6 +8,8 @@ import json
 tf.logging.set_verbosity(tf.logging.INFO)
 
 CONFIG_DIR = 'config'
+# TODO: parameterize these
+IMG_DIM = 101
 
 
 def warm_start(cfg):
@@ -101,10 +103,15 @@ def train_and_eval(cfg, dataset, estimator, hooks=None):
     """
         Performs the estimator's train_and_evaluate method
     """
+    resize_dim = cfg.get('data.ext.resize_dim')
+    diff = resize_dim - IMG_DIM
+    mid_padding = diff // 2
+    resize = [[mid_padding, diff - mid_padding], [mid_padding, diff - mid_padding], [0, 0]]
+
     # augment = {'rotation': None, 'shear': None, 'flip': None, 'rot90': None}
     # augment = {'flip': None, 'rot90': None}
     augment = {'flip': None}
-    train_spec = tf.estimator.TrainSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN, augment),
+    train_spec = tf.estimator.TrainSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN, augment, None),
                                         max_steps=cfg.get('train_steps'),
                                         hooks=hooks)
 
@@ -112,7 +119,7 @@ def train_and_eval(cfg, dataset, estimator, hooks=None):
     # in estimator RunConfig. Then, throttle_secs kicks in where it will wait a minimum of this many seconds before an
     # evaluation is run again (after a RunConfig configured checkpoint save). Setting to 1 second means the RunConfig
     # save_checkpoint_* arguments will control evaluation triggers.
-    eval_spec = tf.estimator.EvalSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
+    eval_spec = tf.estimator.EvalSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL, None, resize),
                                       steps=cfg.get('valid_steps'), throttle_secs=1)
 
     return tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)

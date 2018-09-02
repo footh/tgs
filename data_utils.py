@@ -7,7 +7,7 @@ import os
 import shutil
 from random import shuffle
 
-RAW_DIR = 'raw'
+RAW_DIR = 'raw-edit'
 
 
 def _remove_files(src):
@@ -147,9 +147,9 @@ def train_stats(base_dir='tgs/data', img_dim=101, bins=10, generate=True):
 
         train_df["coverage_bin"] = train_df.coverage.map(cov_to_bin)
 
-        train_df.to_csv(f'{base_dir}/train_stats_master.csv')
+        train_df.to_csv(f'{base_dir}/train_stats-master.csv')
     else:
-        train_df = pd.read_csv(f'{base_dir}/train_stats_master.csv')
+        train_df = pd.read_csv(f'{base_dir}/train_stats-master.csv')
 
     return train_df
 
@@ -170,10 +170,10 @@ def prune_train_stats(id_files, base_dir='tgs/data', out_pf='X'):
     idx_del = train_stats_df[train_stats_df.id.isin(ids)].index
     train_stats_df_pruned = train_stats_df.drop(idx_del)
 
-    train_stats_df_pruned.to_csv(f'{base_dir}/train_stats_{out_pf}.csv', index=False)
+    train_stats_df_pruned.to_csv(f'{base_dir}/train_stats-{out_pf}.csv', index=False)
 
 
-def build_sets(test_size, base_dir='tgs/data', train_stats_df=None, gen_stats=True, seed=1, out_pf=''):
+def build_sets(test_size, base_dir='tgs/data', train_stats_df=None, gen_stats=False, seed=1, out_pf=''):
     """
         Build training and validation sets. Note: nukes the 'train' and 'valid' (plus out_pf)
     """

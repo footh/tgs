@@ -24,10 +24,11 @@ class UnetModel(model.BaseModel):
         ds_layers_out = []
 
         with tf.variable_scope('process_ds'):
+            # NOTE: default activation for conv2d is tf.nn.relu
+            # NOTE: default uniform xavier_initializer is used for the weights here.
             index = len(ds_layers) - 1
             while index >= 0:
                 net = tf.layers.conv2d(ds_layers[index], self.config_dict['ext']['process_channels'], 1,
-                                       activation=tf.nn.relu,
                                        kernel_regularizer=regularizer, name=f'conv{index+1}')
                 if len(ds_layers_out) > 0:
                     up_layer = ds_layers_out[-1]
@@ -35,8 +36,7 @@ class UnetModel(model.BaseModel):
                     up = tf.image.resize_images(up_layer, up_size, tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
                     net = tf.add(net, up, name=f"fuse{index+1}")
-                    net = tf.layers.conv2d(net, self.config_dict['ext']['process_channels'], 3,
-                                           activation=tf.nn.relu, padding='same',
+                    net = tf.layers.conv2d(net, self.config_dict['ext']['process_channels'], 3, padding='same',
                                            kernel_regularizer=regularizer, name=f'fuse_conv{index+1}')
 
                 ds_layers_out.append(net)
@@ -57,57 +57,13 @@ class UnetModel(model.BaseModel):
                                        kernel_regularizer=regularizer, name=f'conv_a{i+1}')
 
                 net = tf.layers.conv2d(net, self.config_dict['ext']['process_channels'], 3,
-                                       activation=None, padding='same',
+                                       activation=tf.nn.relu, padding='same',
                                        kernel_regularizer=regularizer, name=f'conv_b{i+1}')
 
                 net = tf.nn.relu(tf.add(ds_layer, net, name=f"fuse"))
                 residual_output.append(net)
 
         return residual_output
-
-    def residual_ds_layers_exp(self, ds_layers, regularizer=None):
-        """
-            Perform a residual block on each incoming downsampled layer
-        """
-
-        residual_output = []
-        with tf.variable_scope('residual_ds'):
-            for i, ds_layer in enumerate(ds_layers):
-                net = tf.layers.conv2d(ds_layer, self.config_dict['ext']['process_channels'], 3,
-                                       activation=tf.nn.relu, padding='same',
-                                       kernel_regularizer=regularizer, name=f'conv_a{i+1}')
-
-                net = tf.layers.conv2d(net, self.config_dict['ext']['process_channels'], 3,
-                                       activation=None, padding='same',
-                                       kernel_regularizer=regularizer, name=f'conv_b{i+1}')
-
-                net = tf.nn.relu(tf.add(ds_layer, net, name=f"fuse"))
-                residual_output.append(net)
-
-        residual_output_dilated = []
-        with tf.variable_scope('residual_ds_dilated'):
-            for i, ds_layer in enumerate(ds_layers):
-                net = tf.layers.conv2d(ds_layer, self.config_dict['ext']['process_channels'], 3, dilation_rate=2,
-                                       activation=tf.nn.relu, padding='same',
-                                       kernel_regularizer=regularizer, name=f'dconv_a{i+1}')
-
-                net = tf.layers.conv2d(net, self.config_dict['ext']['process_channels'], 3, dilation_rate=2,
-                                       activation=None, padding='same',
-                                       kernel_regularizer=regularizer, name=f'dconv_b{i+1}')
-
-                net = tf.nn.relu(tf.add(ds_layer, net, name=f"dfuse"))
-                residual_output_dilated.append(net)
-
-        final_output = []
-        with tf.variable_scope('residual_ds_final'):
-            for i in range(len(ds_layers)):
-                net = tf.concat([residual_output[i], residual_output_dilated[i]], axis=-1)
-                net = tf.layers.conv2d(net, self.config_dict['ext']['process_channels'], 3,
-                                       activation=tf.nn.relu, padding='same',
-                                       kernel_regularizer=regularizer, name=f'conv_a{i+1}')
-                final_output.append(net)
-
-        return final_output
 
     def upsample(self, ds_layers, regularizer=None):
         """
@@ -145,7 +101,7 @@ class UnetModel(model.BaseModel):
         with tf.variable_scope('decode'):
             ds_layers = self.process_ds_layers(ds_layers, regularizer=regularizer)
 
-            ds_layers = self.residual_ds_layers_exp(ds_layers, regularizer=regularizer)
+            ds_layers = self.residual_ds_layers(ds_layers, regularizer=regularizer)
 
             us_layers = self.upsample(ds_layers, regularizer=regularizer)
 

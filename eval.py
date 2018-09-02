@@ -7,6 +7,9 @@ import os
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
+# TODO: parameterize these
+IMG_DIM = 101
+
 
 def evaluate(cfg, checkpoint_path, hooks=None):
 
@@ -29,9 +32,14 @@ def evaluate(cfg, checkpoint_path, hooks=None):
     if cfg.get('metric.map_iou') is not None:
         params['map_iou'] = cfg.get('metric.map_iou')
 
+    resize_dim = cfg.get('data.ext.resize_dim')
+    diff = resize_dim - IMG_DIM
+    mid_padding = diff // 2
+    resize = [[mid_padding, diff - mid_padding], [mid_padding, diff - mid_padding], [0, 0]]
+
     estimator = tf.estimator.Estimator(model_fn=model.model_fn, config=None, params=params)
 
-    evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
+    evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL, resize_param=resize),
                                     steps=cfg.get('valid_steps'),
                                     hooks=hooks,
                                     checkpoint_path=checkpoint_path)
