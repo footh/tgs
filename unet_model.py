@@ -180,8 +180,6 @@ class ResnetV1Unet(UnetModel):
 
         net = inp['img']
 
-        img_size = self.config_dict['ext']['img_size']
-
         training = (mode == tf.estimator.ModeKeys.TRAIN)
 
         with tf.variable_scope('encode'):
@@ -190,7 +188,7 @@ class ResnetV1Unet(UnetModel):
                                                   is_training=training,
                                                   prefix=f'{self.name}/encode/')
 
-        logits = self.decoder(ds_layers, regularizer=regularizer)
+        logits = self.decoder(ds_layers[1:], regularizer=regularizer)
 
         return logits
 
@@ -217,6 +215,126 @@ class ResnetV2Unet(UnetModel):
                                                   is_training=training,
                                                   prefix=f'{self.name}/encode/')
 
-        logits = self.decoder(ds_layers, regularizer=regularizer)
+        logits = self.decoder(ds_layers[1:], regularizer=regularizer)
 
         return logits
+
+
+class SimpleUnet(model.BaseModel):
+    """
+        Unet model that captures common functionality for upsampling
+    """
+
+    def __init__(self, config_dict, name=None):
+        super().__init__(config_dict)
+        assert 'img_size' in config_dict['ext'].keys(), "img_size must be provided"
+        assert 'encoder_l2_decay' in config_dict['ext'].keys(), "encoder_l2_decay must be provided"
+
+        self.name = 'simple_unet' if name is None else name
+
+    @staticmethod
+    def up_convolution(inp, filters, kernel=3,  dilation=1, regularizer=None, training=True, relu=True):
+        net = tf.layers.conv2d(inp, filters, kernel, dilation_rate=dilation,
+                               padding='same', use_bias=False, kernel_regularizer=regularizer)
+        net = tf.layers.batch_normalization(net, training=training)
+
+        if relu:
+            net = tf.nn.relu(net)
+
+        return net
+
+    def upsample(self, ds_layers, regularizer=None, training=True):
+        """
+            Takes in a collection of downsampled layers, applies  transposed convolutions for each input layer returns
+            the results.
+
+            Returns the upsampled layers as an array
+
+            kernel size calculated per here:
+            http://warmspringwinds.github.io/tensorflow/tf-slim/2016/11/22/upsampling-and-image-segmentation-with-tensorflow-and-tf-slim/
+        """
+        assert(len(ds_layers) == 5)
+
+        net = ds_layers[4]
+        # 4x4x2048
+        net = self.up_convolution(net, 1024, regularizer=regularizer, training=training)
+        net = self.up_convolution(net, 1024, regularizer=regularizer, training=training)
+        net = tf.image.resize_bilinear(net, (8, 8))
+        # 8x8x1024
+
+        net = tf.concat((ds_layers[3], net), axis=-1)
+        # 8x8x2048
+        net = self.up_convolution(net, 1024, regularizer=regularizer, training=training)
+        net = self.up_convolution(net, 512, regularizer=regularizer, training=training)
+        net = tf.image.resize_bilinear(net, (16, 16))
+        # 16x16x512
+
+        net = tf.concat((ds_layers[2], net), axis=-1)
+        # 16x16x1024
+        net = self.up_convolution(net, 512, regularizer=regularizer, training=training)
+        net = self.up_convolution(net, 256, regularizer=regularizer, training=training)
+        net = tf.image.resize_bilinear(net, (32, 32))
+        # 32x32x256
+
+        net = tf.concat((ds_layers[1], net), axis=-1)
+        # 32x32x512
+        net = self.up_convolution(net, 256, regularizer=regularizer, training=training)
+        net = self.up_convolution(net, 128, regularizer=regularizer, training=training)
+        net = self.up_convolution(net, 64, regularizer=regularizer, training=training)
+        net = tf.image.resize_bilinear(net, (64, 64))
+        # 64x64x64
+
+        net = tf.concat((ds_layers[0], net), axis=-1)
+        # 64x64x128
+        net = self.up_convolution(net, 64, regularizer=regularizer, training=training)
+        net = self.up_convolution(net, 32, regularizer=regularizer, training=training)
+        # 64x64x32
+
+        # Since channels are remaining the same, could use bilinear initializer
+        net = tf.layers.conv2d_transpose(net, 32, 4, 2, padding='same',
+                                         kernel_regularizer=regularizer)
+        # 128x128x32
+        net = self.up_convolution(net, 32, regularizer=regularizer, training=training)
+        # 128x128x32
+        logits = self.up_convolution(net, 1, regularizer=regularizer, training=training, relu=False)
+        # 128x128x1
+
+        return logits
+
+    def decoder(self, ds_layers, regularizer=None):
+        with tf.variable_scope('decode'):
+
+            us_layers = self.upsample(ds_layers, regularizer=regularizer)
+
+            with tf.variable_scope('upsample'):
+                logits = tf.add_n(us_layers, name='fuse_us')
+
+                logits = tf.squeeze(logits, axis=-1, name='squeeze')
+
+        return logits
+
+    def build_model(self, inp, mode, regularizer=None):
+
+        net = inp['img']
+
+        training = (mode == tf.estimator.ModeKeys.TRAIN)
+
+        with tf.variable_scope('encode'):
+            ds_layers = encoder.build_resnet50_v1(net,
+                                                  l2_weight_decay=self.config_dict['ext']['encoder_l2_decay'],
+                                                  is_training=training,
+                                                  prefix=f'{self.name}/encode/')
+
+        with tf.variable_scope('decode'):
+            logits = self.upsample(ds_layers, regularizer=regularizer, training=training)
+
+            logits = tf.squeeze(logits, axis=-1)
+
+        return logits
+
+    def logits_to_probs(self, logits):
+        return tf.nn.sigmoid(logits)
+
+    def loss_op(self, labels, logits):
+        return tf.losses.sigmoid_cross_entropy(labels, logits)
+

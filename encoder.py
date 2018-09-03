@@ -33,7 +33,7 @@ def resnet_v1_50(inputs,
         scope=scope)
 
 
-def build_resnet50_v1(img_input, l2_weight_decay=0.01, is_training=True, prefix=None):
+def build_resnet50_v1(img_input, l2_weight_decay=0.01, is_training=True, prefix=''):
     """
         Builds resnet50_v1 model from slim, with strides reversed.
 
@@ -46,8 +46,9 @@ def build_resnet50_v1(img_input, l2_weight_decay=0.01, is_training=True, prefix=
     block3 = endpoints[f'{prefix}resnet_v1_50/block3']
     block2 = endpoints[f'{prefix}resnet_v1_50/block2']
     block1 = endpoints[f'{prefix}resnet_v1_50/block1']
+    conv1 = endpoints[f'{prefix}resnet_v1_50/conv1']
 
-    return block1, block2, block3, block4
+    return conv1, block1, block2, block3, block4
 
 
 def resnet_v2_50(inputs,
@@ -79,7 +80,7 @@ def resnet_v2_50(inputs,
         scope=scope)
 
 
-def build_resnet50_v2(img_input, l2_weight_decay=0.01, is_training=True, prefix=None):
+def build_resnet50_v2(img_input, l2_weight_decay=0.01, is_training=True, prefix=''):
     """
         Builds resnet50_v2 model from slim
 
@@ -92,5 +93,6 @@ def build_resnet50_v2(img_input, l2_weight_decay=0.01, is_training=True, prefix=
     block3 = endpoints[f'{prefix}resnet_v2_50/block3']
     block2 = endpoints[f'{prefix}resnet_v2_50/block2']
     block1 = endpoints[f'{prefix}resnet_v2_50/block1']
+    conv1 = endpoints[f'{prefix}resnet_v2_50/conv1']
 
-    return block1, block2, block3, block4
+    return conv1, block1, block2, block3, block4
