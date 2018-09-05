@@ -74,6 +74,17 @@ class BaseModel(object):
 
         return reduced_grads_and_vars
 
+    @staticmethod
+    def conv2d_bn(inp, filters, kernel=3, padding='same', dilation=1, regularizer=None, training=True, relu=True):
+        net = tf.layers.conv2d(inp, filters, kernel, dilation_rate=dilation,
+                               padding=padding, use_bias=False, kernel_regularizer=regularizer)
+        net = tf.layers.batch_normalization(net, training=training)
+
+        if relu:
+            net = tf.nn.relu(net)
+
+        return net
+
     def build_model(self, inp, mode, regularizer=None):
         """
         Builds the model and returns the logits. Impmlemented by sub-classes.
