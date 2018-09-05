@@ -159,11 +159,15 @@ class UnetModel(model.BaseModel):
         weights = 1.
         if 'zero_mask_weight' in self.config_dict['ext'] and self.config_dict['ext']['zero_mask_weight'] is not None:
             tf.logging.info(f"Using zero_mask_weight: {self.config_dict['ext']['zero_mask_weight']}")
-            zero_masks = tf.equals(tf.reduce_sum(labels, axis=(1, 2)), 0)
+            zero_masks = tf.equal(tf.reduce_sum(labels, axis=(1, 2)), 0)
             nonzero_masks = tf.logical_not(zero_masks)
 
             weights = tf.cast(zero_masks, tf.float32) * self.config_dict['ext']['zero_mask_weight']
             weights = weights + tf.cast(nonzero_masks, tf.float32)
+            weights = tf.expand_dims(weights, axis=-1)
+            weights = tf.expand_dims(weights, axis=-1)
+            labels_shape = tf.shape(labels)
+            weights = tf.tile(weights, [1, labels_shape[1], labels_shape[2]])
 
         return tf.losses.sigmoid_cross_entropy(labels, logits, weights=weights)
 
@@ -190,7 +194,7 @@ class ResnetV1Unet(UnetModel):
                                                   is_training=training,
                                                   prefix=f'{self.name}/encode/')
 
-        logits = self.decoder(ds_layers[1:], regularizer=regularizer, training=training)
+        logits = self.decoder(ds_layers, regularizer=regularizer, training=training)
 
         return logits
 
@@ -338,5 +342,18 @@ class SimpleUnet(model.BaseModel):
         return tf.nn.sigmoid(logits)
 
     def loss_op(self, labels, logits):
-        return tf.losses.sigmoid_cross_entropy(labels, logits)
+        weights = 1.
+        if 'zero_mask_weight' in self.config_dict['ext'] and self.config_dict['ext']['zero_mask_weight'] is not None:
+            tf.logging.info(f"Using zero_mask_weight: {self.config_dict['ext']['zero_mask_weight']}")
+            zero_masks = tf.equal(tf.reduce_sum(labels, axis=(1, 2)), 0)
+            nonzero_masks = tf.logical_not(zero_masks)
+
+            weights = tf.cast(zero_masks, tf.float32) * self.config_dict['ext']['zero_mask_weight']
+            weights = weights + tf.cast(nonzero_masks, tf.float32)
+            weights = tf.expand_dims(weights, axis=-1)
+            weights = tf.expand_dims(weights, axis=-1)
+            labels_shape = tf.shape(labels)
+            weights = tf.tile(weights, [1, labels_shape[1], labels_shape[2]])
+
+        return tf.losses.sigmoid_cross_entropy(labels, logits, weights=weights)
 

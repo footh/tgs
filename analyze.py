@@ -34,7 +34,7 @@ class AnalyzeEvaluationHook(tf.train.SessionRunHook):
         self.results_dict['resize_param'].extend(resize_params)
 
 
-def analyze_unet(results, cfg, output_dir='.', bottom_k=10):
+def analyze_unet(results, cfg, output_dir='.', bottom_k=20):
     """
         Given Unet evaluation results performs analysis:
         1) Writes metrics csv
