@@ -5,6 +5,7 @@ model:
   ext:
     img_size: 128
     encoder_l2_decay: 0.0001
+    zero_mask_weight:
 # Metric parameters ----------------------------------
 metric:
   map_iou:
