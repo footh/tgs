@@ -1,6 +1,8 @@
+import tensorflow as tf
 from tensorflow.contrib import slim
 from tensorflow.contrib.slim.python.slim.nets import resnet_v1
 from tensorflow.contrib.slim.python.slim.nets import resnet_v2
+from tensorflow.contrib.slim.python.slim.nets import inception_resnet_v2
 
 
 def resnet_v1_50(inputs,
@@ -37,7 +39,7 @@ def build_resnet50_v1(img_input, l2_weight_decay=0.01, is_training=True, prefix=
     """
         Builds resnet50_v1 model from slim, with strides reversed.
 
-        Returns the last four block outputs to be used transposed convolution layers
+        Returns the last five block outputs to be used transposed convolution layers
     """
 
     with slim.arg_scope(resnet_v1.resnet_arg_scope(weight_decay=l2_weight_decay)):
@@ -84,7 +86,7 @@ def build_resnet50_v2(img_input, l2_weight_decay=0.01, is_training=True, prefix=
     """
         Builds resnet50_v2 model from slim
 
-        Returns the last three block outputs to be used transposed convolution layers
+        Returns the last five block outputs to be used transposed convolution layers
     """
 
     with slim.arg_scope(resnet_v2.resnet_arg_scope(weight_decay=l2_weight_decay)):
@@ -96,3 +98,35 @@ def build_resnet50_v2(img_input, l2_weight_decay=0.01, is_training=True, prefix=
     conv1 = endpoints[f'{prefix}resnet_v2_50/conv1']
 
     return conv1, block1, block2, block3, block4
+
+
+def build_inception_resnet_v2(img_input, l2_weight_decay=0.01, is_training=True, prefix=''):
+    """
+        Builds inception_resnet_v2 model from slim
+
+        Returns the last five block outputs to be used transposed convolution layers
+    """
+
+    with slim.arg_scope(inception_resnet_v2.inception_resnet_v2_arg_scope(weight_decay=l2_weight_decay)):
+        with slim.arg_scope([slim.batch_norm, slim.dropout], is_training=is_training):
+            block5, endpoints = inception_resnet_v2.inception_resnet_v2_base(img_input,
+                                                                             align_feature_maps=True)
+
+    # Conv2d_1a_3x3: [10, 64, 64, 32]
+    # Conv2d_2a_3x3: [10, 64, 64, 32]
+    # Conv2d_2b_3x3: [10, 64, 64, 64]
+    # MaxPool_3a_3x3: [10, 32, 32, 64]
+    # Conv2d_3b_1x1: [10, 32, 32, 80]
+    # Conv2d_4a_3x3: [10, 32, 32, 192]
+    # MaxPool_5a_3x3: [10, 16, 16, 192]
+    # Mixed_5b: [10, 16, 16, 320]
+    # Mixed_6a: [10, 8, 8, 1088]
+    # PreAuxLogits: [10, 8, 8, 1088]
+    # Mixed_7a: [10, 4, 4, 2080]
+    # Conv2d_7b_1x1: [10, 4, 4, 1536]
+    block4 = endpoints[f'{prefix}PreAuxLogits']
+    block3 = endpoints[f'{prefix}Mixed_5b']
+    block2 = endpoints[f'{prefix}Conv2d_4a_3x3']
+    block1 = endpoints[f'{prefix}Conv2d_2b_3x3']
+
+    return block1, block2, block3, block4, block5

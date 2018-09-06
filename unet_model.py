@@ -226,6 +226,32 @@ class ResnetV2Unet(UnetModel):
         return logits
 
 
+class InceptionResnetV2Unet(UnetModel):
+    """
+        Unet with Inception Resnet v2 decoder
+    """
+
+    def __init__(self, config_dict, name=None):
+        super().__init__(config_dict)
+
+        self.name = 'incepres_unet' if name is None else name
+
+    def build_model(self, inp, mode, regularizer=None):
+
+        net = inp['img']
+
+        training = (mode == tf.estimator.ModeKeys.TRAIN)
+
+        with tf.variable_scope('encode'):
+            ds_layers = encoder.build_inception_resnet_v2(net,
+                                                          l2_weight_decay=self.config_dict['ext']['encoder_l2_decay'],
+                                                          is_training=training)
+
+        logits = self.decoder(ds_layers, regularizer=regularizer, training=training)
+
+        return logits
+
+
 class SimpleUnet(model.BaseModel):
     """
         Unet model that captures common functionality for upsampling

@@ -1,0 +1,53 @@
+# Model parameters -----------------------------------
+model:
+  label_cnt: 1
+  class: 'InceptionResnetV2Unet'
+  ext:
+    img_size: 128
+    encoder_l2_decay: 0.0001
+    process_channels: 256
+    zero_mask_weight:
+# Metric parameters ----------------------------------
+metric:
+  map_iou:
+    thresholds: [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+    pred_thresh: 0.5
+# Data parameters ------------------------------------
+data:
+  class: 'ImageDataInput'
+  train_file_pattern: ['./tgs/data/train/tfrecord/tgs*']
+  valid_file_pattern: ['./tgs/data/valid/tfrecord/tgs*']
+  test_file_pattern: ['./tgs/data/test/tfrecord/tgs*']
+  shuf_buf: 5000
+  parallel_calls: 4
+  ext:
+    resize_dim: 128
+    resize_method: 'pad'
+    min_padding: 5
+    preprocess: 'inception'
+# Base training parameters ---------------------------
+batch_size: 20
+train_steps: 6000
+valid_steps: 30
+learning_rate:
+  base: 0.0006
+  cosine_decay:
+    steps: 6000
+    m_mul: 0.65
+    alpha: 0.01
+l2_weight_decay: 0.0001
+l2_normalize:
+optimizer:
+  adam:
+    epsilon: 0.0001
+clip_grad_norm:
+reduce_grad:
+ema_decay:
+log_steps: 10
+checkpoint:
+  save_steps: 1000
+  keep: 80
+  warm_start:
+    checkpoint_path: './tgs/training-runs/init/inception_resnet_v2_2016_08_30.ckpt'
+    var_map: './tgs/training-runs/init/inception_resnet_v2_2016_08_30-unet.json'
+    var_init: '.*InceptionResnetV2.*'
