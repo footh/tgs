@@ -83,7 +83,8 @@ def build_estimator(cfg, model_dir):
               'adam_epsilon': cfg.get('optimizer.adam.epsilon'),
               'ema_decay': cfg.get('ema_decay'),
               'clip_grad_norm': cfg.get('clip_grad_norm'),
-              'reduce_grad': cfg.get('reduce_grad')}
+              'reduce_grad': cfg.get('reduce_grad'),
+              'trainable_vars': cfg.get('trainable_vars')}
 
     if cfg.get('metric.accuracy') is not None:
         params['accuracy'] = cfg.get('metric.accuracy')

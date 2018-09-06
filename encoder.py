@@ -1,8 +1,7 @@
-import tensorflow as tf
 from tensorflow.contrib import slim
 from tensorflow.contrib.slim.python.slim.nets import resnet_v1
 from tensorflow.contrib.slim.python.slim.nets import resnet_v2
-from tensorflow.contrib.slim.python.slim.nets import inception_resnet_v2
+# from tensorflow.contrib.slim.python.slim.nets import inception_resnet_v2
 
 
 def resnet_v1_50(inputs,

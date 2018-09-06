@@ -33,6 +33,26 @@ class BaseModel(object):
         return np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()])
 
     @staticmethod
+    def get_trainable_vars(scope_list=None):
+        """
+            Return list of variables to train, argument is comma-delimited list of scopes to train.
+            Passing None trains all.
+        """
+        if scope_list is None:
+            tf.logging.info(f"Training ALL variables..")
+            return tf.trainable_variables()
+        else:
+            scopes = [scope.strip() for scope in scope_list.split(',')]
+
+        variables_to_train = []
+        for scope in scopes:
+            variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
+            variables_to_train.extend(variables)
+
+        tf.logging.info(f"Training {len(variables_to_train)} variables..")
+        return variables_to_train
+
+    @staticmethod
     def cross_entropy_loss(labels, predictions):
         """
         Cross entropy loss for when predictions are already squashed to [0,1]
@@ -208,7 +228,8 @@ class BaseModel(object):
 
                 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
                 with tf.control_dependencies(update_ops):
-                    grads_and_vars = optimizer.compute_gradients(loss)
+                    trainable_vars = self.get_trainable_vars(params['trainable_vars'])
+                    grads_and_vars = optimizer.compute_gradients(loss, var_list=trainable_vars)
                     if params['clip_grad_norm'] is not None:
                         grads_and_vars = self.clip_gradient_norms(grads_and_vars, params['clip_grad_norm'])
 
