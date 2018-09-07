@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tgs import encoder
 from tgs import model
+from tgs import lovasz
 
 
 class UnetModel(model.BaseModel):
@@ -169,7 +170,10 @@ class UnetModel(model.BaseModel):
             labels_shape = tf.shape(labels)
             weights = tf.tile(weights, [1, labels_shape[1], labels_shape[2]])
 
-        return tf.losses.sigmoid_cross_entropy(labels, logits, weights=weights)
+        bce_loss = tf.losses.sigmoid_cross_entropy(labels, logits, weights=weights)
+        lov_loss = lovasz.lovasz_hinge(logits, labels)
+
+        return (bce_loss + lov_loss) / 2
 
 
 class ResnetV1Unet(UnetModel):
@@ -194,7 +198,7 @@ class ResnetV1Unet(UnetModel):
                                                   is_training=training,
                                                   prefix=f'{self.name}/encode/')
 
-        logits = self.decoder(ds_layers, regularizer=regularizer, training=training)
+        logits = self.decoder(ds_layers[1:], regularizer=regularizer, training=training)
 
         return logits
 
@@ -381,5 +385,7 @@ class SimpleUnet(model.BaseModel):
             labels_shape = tf.shape(labels)
             weights = tf.tile(weights, [1, labels_shape[1], labels_shape[2]])
 
-        return tf.losses.sigmoid_cross_entropy(labels, logits, weights=weights)
+        bce_loss = tf.losses.sigmoid_cross_entropy(labels, logits, weights=weights)
+        lov_loss = lovasz.lovasz_hinge(logits, labels)
 
+        return (bce_loss + lov_loss) / 2
