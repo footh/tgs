@@ -63,7 +63,7 @@ def lovasz_hinge_flat(logits, labels):
         gt_sorted = tf.gather(labelsf, perm)
         grad = lovasz_grad(gt_sorted)
         # loss = tf.tensordot(tf.nn.relu(errors_sorted), tf.stop_gradient(grad), 1, name="loss_non_void")
-        loss = tf.tensordot(tf.nn.elu(errors_sorted), tf.stop_gradient(grad), 1, name="loss_non_void")
+        loss = tf.tensordot(tf.nn.elu(errors_sorted) + 1., tf.stop_gradient(grad), 1, name="loss_non_void")
 
         return loss
 

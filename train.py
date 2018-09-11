@@ -128,21 +128,23 @@ def train_and_eval(cfg, dataset, estimator, hooks=None):
 
 def train(cfg, dataset, estimator, hooks=None):
 
-    while True:
+    # while True:
         # Will the estimator's RunConfig save_checkpoint_* settings cause training to stop or do I need to set this
         # 'steps' parameter. Either way, I think this should be set to the save_checkpoint_secs for connsistency. But
         # if I want to vary checkpoint save steps (ie. as loss
-        estimator.train(lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN),
-                        steps=cfg.get('train_steps'),
-                        hook=hooks)
+    estimator.train(lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN),
+                    steps=200,
+                    hooks=hooks)
 
         # Use these to reset learning rate and prevent warm start on future calls and set save checkpoint steps
-        estimator._params = None
-        estimator._warm_start_settings = None
-        estimator._config.save_checkpoints_steps = None
+        # estimator._params = None
+        # estimator._warm_start_settings = None
+        # estimator._config.save_checkpoints_steps = None
+        #
+    evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
+                                    steps=cfg.get('valid_steps'))
 
-        evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
-                                        steps=cfg.get('valid_steps'))
+    print(evaluation)
 
 
 def main(_):
@@ -158,6 +160,7 @@ def main(_):
     estimator = build_estimator(cfg, FLAGS.model_dir)
 
     train_and_eval(cfg, dataset, estimator)
+    # train(cfg, dataset, estimator)
 
 
 tf.app.flags.DEFINE_string(

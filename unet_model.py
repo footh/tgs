@@ -329,6 +329,8 @@ class SimpleUnet(model.BaseModel):
         # Since channels are remaining the same, could use bilinear initializer
         net = tf.layers.conv2d_transpose(net, 32, 4, 2, padding='same',
                                          kernel_regularizer=regularizer)
+        net = tf.layers.batch_normalization(net, training=training)
+
         # 128x128x32
         net = self.up_convolution(net, 32, regularizer=regularizer, training=training)
         # 128x128x32
