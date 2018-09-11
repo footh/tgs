@@ -131,6 +131,13 @@ class ImageDataInput(DataInput):
 
             img = tf.pad(img, paddings, "REFLECT")
             param = paddings
+        elif self.config_dict['ext']['resize_method'] == 'resize-pad':
+            img = tf.image.resize_images(img, (resize_dim, resize_dim),
+                                         method=tf.image.ResizeMethod.BILINEAR)
+
+            img = tf.pad(img, [[11, 11], [11, 11], [0, 0]], "REFLECT")
+            param = orig_dim
+
         else:
             img = tf.image.resize_images(img, (resize_dim, resize_dim),
                                          method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
