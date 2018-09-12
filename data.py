@@ -101,6 +101,12 @@ class ImageDataInput(DataInput):
             img = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_left_right(img), lambda: tf.identity(img))
             mask = tf.cond(tf.cast(flip, tf.bool), lambda: tf.image.flip_left_right(mask), lambda: tf.identity(mask))
 
+        if 'brightness' in augment_dict:
+            brightness = augment_dict['brightness']
+            if brightness is None:
+                brightness = tf.random_uniform([], maxval=0.1, minval=-0.1)
+            img = tf.image.adjust_brightness(img, brightness)
+
         return img, mask
 
     def resize(self, img, resize_param=None):
