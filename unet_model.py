@@ -33,7 +33,7 @@ class UnetModel(model.BaseModel):
                 if len(ds_layers_out) > 0:
                     up_layer = ds_layers_out[-1]
                     up_size = tf.shape(up_layer)[1:3] * 2
-                    up = tf.image.resize_images(up_layer, up_size, tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+                    up = tf.image.resize_bilinear(up_layer, up_size, align_corners=True)
 
                     net = tf.add(net, up, name=f"fuse{index+1}")
                     net = self.conv2d_bn(net, self.config_dict['ext']['process_channels'], 3,
@@ -297,21 +297,21 @@ class SimpleUnet(model.BaseModel):
         # root_sizex2048
         net = self.up_convolution(net, 1024, regularizer=regularizer, training=training)
         net = self.up_convolution(net, 1024, regularizer=regularizer, training=training)
-        net = tf.image.resize_bilinear(net, (root_size * 2, root_size * 2))
+        net = tf.image.resize_bilinear(net, (root_size * 2, root_size * 2), align_corners=True)
         # root_size*2x1024
 
         net = tf.concat((ds_layers[3], net), axis=-1)
         # root_size*2x2048
         net = self.up_convolution(net, 1024, regularizer=regularizer, training=training)
         net = self.up_convolution(net, 512, regularizer=regularizer, training=training)
-        net = tf.image.resize_bilinear(net, (root_size * 4, root_size * 4))
+        net = tf.image.resize_bilinear(net, (root_size * 4, root_size * 4), align_corners=True)
         # root_size*4x512
 
         net = tf.concat((ds_layers[2], net), axis=-1)
         # root_size*4x1024
         net = self.up_convolution(net, 512, regularizer=regularizer, training=training)
         net = self.up_convolution(net, 256, regularizer=regularizer, training=training)
-        net = tf.image.resize_bilinear(net, (root_size * 8, root_size * 8))
+        net = tf.image.resize_bilinear(net, (root_size * 8, root_size * 8), align_corners=True)
         # root_size*8x256
 
         net = tf.concat((ds_layers[1], net), axis=-1)
@@ -319,7 +319,7 @@ class SimpleUnet(model.BaseModel):
         net = self.up_convolution(net, 256, regularizer=regularizer, training=training)
         net = self.up_convolution(net, 128, regularizer=regularizer, training=training)
         net = self.up_convolution(net, 64, regularizer=regularizer, training=training)
-        net = tf.image.resize_bilinear(net, (root_size * 16, root_size * 16))
+        net = tf.image.resize_bilinear(net, (root_size * 16, root_size * 16), align_corners=True)
         # root_size*16x64
 
         net = tf.concat((ds_layers[0], net), axis=-1)
