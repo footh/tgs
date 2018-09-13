@@ -104,8 +104,26 @@ class ImageDataInput(DataInput):
         if 'brightness' in augment_dict:
             brightness = augment_dict['brightness']
             if brightness is None:
-                brightness = tf.random_uniform([], maxval=0.1, minval=-0.1)
+                brightness = tf.random_uniform([], minval=-0.1, maxval=0.1)
             img = tf.image.adjust_brightness(img, brightness)
+
+        if 'crop' in augment_dict:
+            crop = augment_dict['crop']
+            if crop is None:
+                # 0.0 to 0.25 in intervals of 0.05
+                crop = tf.multiply(tf.cast(tf.random_uniform([], minval=0, maxval=20, dtype=tf.int32), tf.float32), tf.constant(0.05))
+
+            orig_dim = tf.shape(img)[1]
+
+            def crop_and_resize(im):
+                m = crop / 2.
+                im = tf.expand_dims(im, axis=0)
+                im = tf.image.crop_and_resize(im, [[m, m, 1. - m, 1. - m]], [0], [orig_dim, orig_dim], method='bilinear')
+                return tf.cast(tf.squeeze(im, axis=0), tf.uint8)
+
+            img = crop_and_resize(img)
+            mask = crop_and_resize(mask)
+            mask = tf.cast(tf.greater(mask, 127), tf.uint8) * 255
 
         return img, mask
 
