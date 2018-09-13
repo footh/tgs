@@ -43,7 +43,7 @@ def move_config(config_file, model_dir):
     tf.logging.info("Copying config file to model directory...")
     tf.gfile.MakeDirs(os.path.join(model_dir, CONFIG_DIR))
     new_config_file = os.path.join(model_dir, CONFIG_DIR, os.path.basename(config_file))
-    tf.gfile.Copy(FLAGS.config_file, new_config_file, overwrite=True)
+    tf.gfile.Copy(config_file, new_config_file, overwrite=True)
 
     return new_config_file
 
@@ -127,24 +127,52 @@ def train_and_eval(cfg, dataset, estimator, hooks=None):
 
 
 def train(cfg, dataset, estimator, hooks=None):
+    # from tensorflow.python.training import saver
 
-    # while True:
-        # Will the estimator's RunConfig save_checkpoint_* settings cause training to stop or do I need to set this
-        # 'steps' parameter. Either way, I think this should be set to the save_checkpoint_secs for connsistency. But
-        # if I want to vary checkpoint save steps (ie. as loss
-    estimator.train(lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN),
-                    steps=200,
-                    hooks=hooks)
+    eval_loss_streak_max = 5
+    exp_decay_base = 0.8
 
-        # Use these to reset learning rate and prevent warm start on future calls and set save checkpoint steps
-        # estimator._params = None
-        # estimator._warm_start_settings = None
-        # estimator._config.save_checkpoints_steps = None
-        #
-    evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
-                                    steps=cfg.get('valid_steps'))
+    lr_base = cfg.get('learning_rate.base')
+    eval_best_loss = 9999.
+    eval_loss_streak = 0
+    eval_loss_streak_hits = 0
 
-    print(evaluation)
+    global_step = 0
+    while global_step < cfg.get('train_steps'):
+
+        # Train up to configured steps
+        estimator.train(lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN),
+                        steps=cfg.get('checkpoint.save_steps'),
+                        hooks=hooks)
+
+        # The trainer loads the warm start on every call then loads the latest checkpoint. This hack ensures it will
+        # only be called on the first call.
+        if global_step == 0:
+            estimator._warm_start_settings = None
+
+        # Evaluate up to configured steps
+        evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
+                                        steps=cfg.get('valid_steps'))
+
+        # Evaluation result looks like below:
+        # {'loss': 3.425947, 'map_iou': 0.39, 'global_step': 100}
+        global_step = evaluation['global_step']
+
+        eval_cur_loss = evaluation['loss']
+        if eval_cur_loss < eval_best_loss:
+            tf.logging.info(f"Eval loss decreased!!! {eval_best_loss} => {eval_cur_loss}. Resetting streak!")
+            eval_best_loss = eval_cur_loss
+            eval_loss_streak = 0
+        else:
+            eval_loss_streak += 1
+            if eval_loss_streak >= eval_loss_streak_max:
+                eval_loss_streak = 0
+                eval_loss_streak_hits += 1
+                tf.logging.info(f"Eval loss has not improved for {eval_loss_streak_max} steps")
+                tf.logging.info(f"Decay exponent increased to {eval_loss_streak_hits}")
+
+                estimator._params['learning_rate'] = lr_base * exp_decay_base ** eval_loss_streak_hits
+                # saver.remove_checkpoint(saver.latest_checkpoint())
 
 
 def main(_):

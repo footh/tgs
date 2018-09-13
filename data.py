@@ -111,7 +111,7 @@ class ImageDataInput(DataInput):
             crop = augment_dict['crop']
             if crop is None:
                 # 0.0 to 0.25 in intervals of 0.05
-                crop = tf.multiply(tf.cast(tf.random_uniform([], minval=0, maxval=20, dtype=tf.int32), tf.float32), tf.constant(0.05))
+                crop = tf.multiply(tf.cast(tf.random_uniform([], minval=0, maxval=6, dtype=tf.int32), tf.float32), tf.constant(0.05))
 
             orig_dim = tf.shape(img)[1]
 
@@ -193,18 +193,22 @@ class ImageDataInput(DataInput):
             example = tf.parse_single_example(record, feature_map)
 
             img = tf.image.decode_png(example['img'])
-            img, resize_param_actual = self.resize(img, resize_param)
 
             if mode != tf.estimator.ModeKeys.PREDICT:
                 mask = tf.image.decode_png(example['mask'])
-                mask, _ = self.resize(mask, resize_param_actual)
             else:
                 mask = tf.constant([[[0]]])
 
+            # Augmenting, if needed
             if augment_dict is not None:
                 img, mask = self.augment(img, mask, augment_dict)
 
-            # Tensorflow image operations don't work with 0 channel grayscales. So need to do this here.
+            # Resizing
+            img, resize_param_actual = self.resize(img, resize_param)
+            if mode != tf.estimator.ModeKeys.PREDICT:
+                mask, _ = self.resize(mask, resize_param_actual)
+
+            # Tensorflow image operations require 1 channel for grayscales. So need to do this here for the model.
             if mode != tf.estimator.ModeKeys.PREDICT:
                 mask = tf.squeeze(mask, axis=-1)
 
