@@ -152,8 +152,11 @@ def ensemble_unet(cfg, checkpoint_paths, augments):
                     tf.logging.info(f"Unet iteration {i}, id: {pred['id']}")
                     if divisor == 1:
                         ids.append(pred['id'].decode())
-                    pred_rv = reverse_augment(pred['probabilities'], augment)
-                    predictions[i] += pp.downsample(pred_rv, resize_method, pred[resize_method])
+
+                    # NOTE: it is very important that this happens REVERSE the way the augment and resize happens in
+                    # in data.py, ie. like popping a stack.
+                    pred_ds = pp.downsample(pred['probabilities'], resize_method, pred[resize_method])
+                    predictions[i] += reverse_augment(pred_ds, augment)
 
     predictions = predictions / divisor
     return ids, predictions
