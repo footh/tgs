@@ -110,15 +110,23 @@ class ImageDataInput(DataInput):
         if 'crop' in augment_dict:
             crop = augment_dict['crop']
             if crop is None:
-                # 0.0 to 0.25 in intervals of 0.05
-                crop = tf.multiply(tf.cast(tf.random_uniform([], minval=0, maxval=6, dtype=tf.int32), tf.float32), tf.constant(0.05))
+                reduce_fac = tf.random_uniform([], minval=0, maxval=6, dtype=tf.int32)
+                x_fac = tf.random_uniform([], minval=0, maxval=reduce_fac + 1, dtype=tf.int32)
+                y_fac = tf.random_uniform([], minval=0, maxval=reduce_fac + 1, dtype=tf.int32)
+
+                # Reduction is 0.0 to 0.25 in intervals of 0.05, x and y offset cannot exceed the reduction
+                reduce = tf.multiply(tf.cast(reduce_fac, tf.float32), tf.constant(0.05))
+                x_off = tf.multiply(tf.cast(x_fac, tf.float32), tf.constant(0.05))
+                y_off = tf.multiply(tf.cast(y_fac, tf.float32), tf.constant(0.05))
+                crop = [reduce, x_off, y_off]
 
             orig_dim = tf.shape(img)[1]
 
             def crop_and_resize(im):
-                m = crop / 2.
+                r, x, y = crop
+                z = 1. - r
                 im = tf.expand_dims(im, axis=0)
-                im = tf.image.crop_and_resize(im, [[m, m, 1. - m, 1. - m]], [0], [orig_dim, orig_dim], method='bilinear')
+                im = tf.image.crop_and_resize(im, [[y, x, y + z, x + z]], [0], [orig_dim, orig_dim], method='bilinear')
                 return tf.cast(tf.squeeze(im, axis=0), tf.uint8)
 
             img = crop_and_resize(img)
