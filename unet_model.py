@@ -33,9 +33,36 @@ class UnetModel(model.BaseModel):
                 if len(ds_layers_out) > 0:
                     up_layer = ds_layers_out[-1]
                     up_size = tf.shape(up_layer)[1:3] * 2
-                    up = tf.image.resize_bilinear(up_layer, up_size, align_corners=True)
+                    up = tf.image.resize_images(up_layer, up_size, tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
                     net = tf.add(net, up, name=f"fuse{index+1}")
+                    net = self.conv2d_bn(net, self.config_dict['ext']['process_channels'], 3,
+                                         regularizer=regularizer, training=training)
+
+                ds_layers_out.append(net)
+                index -= 1
+
+        return ds_layers_out[::-1]
+
+    def process_ds_layers_concat(self, ds_layers, regularizer=None, training=True):
+        """
+            Process the downsample layers by running a convolution to get to desired output channels and upsampling each
+            deeper layer to fuse with layer right above. Fused layers get a final 3x3 convolution.
+        """
+        ds_layers_out = []
+
+        with tf.variable_scope('process_ds'):
+            index = len(ds_layers) - 1
+            while index >= 0:
+                net = self.conv2d_bn(ds_layers[index], self.config_dict['ext']['process_channels'], 1,
+                                     padding='valid', regularizer=regularizer, training=training)
+
+                if len(ds_layers_out) > 0:
+                    up_layer = ds_layers_out[-1]
+                    up_size = tf.shape(up_layer)[1:3] * 2
+                    up = tf.image.resize_images(up_layer, up_size, tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+                    net = tf.concat([net, up], axis=-1, name=f"fuse_concat{index+1}")
                     net = self.conv2d_bn(net, self.config_dict['ext']['process_channels'], 3,
                                          regularizer=regularizer, training=training)
 

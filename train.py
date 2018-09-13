@@ -111,8 +111,8 @@ def train_and_eval(cfg, dataset, estimator, hooks=None):
 
     # augment = {'rotation': None, 'shear': None, 'flip': None, 'rot90': None}
     # augment = {'flip': None, 'rot90': None}
-    augment = {'flip': None}
-    train_spec = tf.estimator.TrainSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN, augment, resize),
+    augment = {'flip': None, 'crop': None, 'brightness': None}
+    train_spec = tf.estimator.TrainSpec(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN, augment, None),
                                         max_steps=cfg.get('train_steps'),
                                         hooks=hooks)
 
