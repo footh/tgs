@@ -295,17 +295,6 @@ class SimpleUnet(model.BaseModel):
 
         self.name = 'simple_unet' if name is None else name
 
-    @staticmethod
-    def up_convolution(inp, filters, kernel=3,  dilation=1, regularizer=None, training=True, relu=True):
-        net = tf.layers.conv2d(inp, filters, kernel, dilation_rate=dilation,
-                               padding='same', use_bias=False, kernel_regularizer=regularizer)
-        net = tf.layers.batch_normalization(net, training=training)
-
-        if relu:
-            net = tf.nn.relu(net)
-
-        return net
-
     def upsample(self, ds_layers, regularizer=None, training=True):
         """
             Takes in a collection of downsampled layers, applies  transposed convolutions for each input layer returns
@@ -322,37 +311,37 @@ class SimpleUnet(model.BaseModel):
 
         net = ds_layers[4]
         # root_sizex2048
-        net = self.up_convolution(net, 1024, regularizer=regularizer, training=training)
-        net = self.up_convolution(net, 1024, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 1024, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 1024, regularizer=regularizer, training=training)
         net = tf.image.resize_bilinear(net, (root_size * 2, root_size * 2), align_corners=True)
         # root_size*2x1024
 
         net = tf.concat((ds_layers[3], net), axis=-1)
         # root_size*2x2048
-        net = self.up_convolution(net, 1024, regularizer=regularizer, training=training)
-        net = self.up_convolution(net, 512, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 1024, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 512, regularizer=regularizer, training=training)
         net = tf.image.resize_bilinear(net, (root_size * 4, root_size * 4), align_corners=True)
         # root_size*4x512
 
         net = tf.concat((ds_layers[2], net), axis=-1)
         # root_size*4x1024
-        net = self.up_convolution(net, 512, regularizer=regularizer, training=training)
-        net = self.up_convolution(net, 256, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 512, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 256, regularizer=regularizer, training=training)
         net = tf.image.resize_bilinear(net, (root_size * 8, root_size * 8), align_corners=True)
         # root_size*8x256
 
         net = tf.concat((ds_layers[1], net), axis=-1)
         # root_size*8x512
-        net = self.up_convolution(net, 256, regularizer=regularizer, training=training)
-        net = self.up_convolution(net, 128, regularizer=regularizer, training=training)
-        net = self.up_convolution(net, 64, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 256, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 128, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 64, regularizer=regularizer, training=training)
         net = tf.image.resize_bilinear(net, (root_size * 16, root_size * 16), align_corners=True)
         # root_size*16x64
 
         net = tf.concat((ds_layers[0], net), axis=-1)
         # root_size*16x128
-        net = self.up_convolution(net, 64, regularizer=regularizer, training=training)
-        net = self.up_convolution(net, 32, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 64, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 32, regularizer=regularizer, training=training)
         # root_size*16x32
 
         # Since channels are remaining the same, could use bilinear initializer
@@ -361,9 +350,73 @@ class SimpleUnet(model.BaseModel):
         net = tf.layers.batch_normalization(net, training=training)
 
         # root_size*32x32
-        net = self.up_convolution(net, 32, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 32, kernel=1, regularizer=regularizer, training=training)
         # root_size*32x32
-        logits = self.up_convolution(net, 1, regularizer=regularizer, training=training, relu=False)
+        logits = self.conv2d_bn(net, 1, kernel=1, regularizer=regularizer, training=training, relu=False)
+        # root_size*32x1
+
+        return logits
+
+    def upsample_light(self, ds_layers, regularizer=None, training=True):
+        """
+            Takes in a collection of downsampled layers, applies  transposed convolutions for each input layer returns
+            the results.
+
+            Returns the upsampled layers as an array
+
+            kernel size calculated per here:
+            http://warmspringwinds.github.io/tensorflow/tf-slim/2016/11/22/upsampling-and-image-segmentation-with-tensorflow-and-tf-slim/
+        """
+        assert(len(ds_layers) == 5)
+
+        root_size = self.config_dict['ext']['img_size'] // (2 ** 5)
+
+        block4 = ds_layers[4]
+        # root_sizex2048
+        net = self.conv2d_bn(block4, 1024, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 512, regularizer=regularizer, training=training)
+        net = tf.image.resize_bilinear(net, (root_size * 2, root_size * 2), align_corners=True)
+        # root_size*2x512
+
+        block3 = self.conv2d_bn(ds_layers[3], 512, kernel=1, regularizer=regularizer, training=training)
+        net = tf.concat((block3, net), axis=-1)
+        # root_size*2x1024
+        net = self.conv2d_bn(net, 512, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 256, regularizer=regularizer, training=training)
+        net = tf.image.resize_bilinear(net, (root_size * 4, root_size * 4), align_corners=True)
+        # root_size*4x256
+
+        block2 = self.conv2d_bn(ds_layers[2], 256, kernel=1, regularizer=regularizer, training=training)
+        net = tf.concat((block2, net), axis=-1)
+        # root_size*4x512
+        net = self.conv2d_bn(net, 256, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 128, regularizer=regularizer, training=training)
+        net = tf.image.resize_bilinear(net, (root_size * 8, root_size * 8), align_corners=True)
+        # root_size*8x128
+
+        block1 = self.conv2d_bn(ds_layers[1], 256, kernel=1, regularizer=regularizer, training=training)
+        net = tf.concat((block1, net), axis=-1)
+        # root_size*8x256
+        net = self.conv2d_bn(net, 128, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 64, regularizer=regularizer, training=training)
+        net = tf.image.resize_bilinear(net, (root_size * 16, root_size * 16), align_corners=True)
+        # root_size*16x64
+
+        net = tf.concat((ds_layers[0], net), axis=-1)
+        # root_size*16x128
+        net = self.conv2d_bn(net, 64, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, 32, regularizer=regularizer, training=training)
+        # root_size*16x32
+
+        # Since channels are remaining the same, could use bilinear initializer
+        net = tf.layers.conv2d_transpose(net, 32, 4, 2, padding='same',
+                                         kernel_regularizer=regularizer)
+        net = tf.layers.batch_normalization(net, training=training)
+
+        # root_size*32x32
+        net = self.conv2d_bn(net, 32, kernel=1, regularizer=regularizer, training=training)
+        # root_size*32x32
+        logits = self.conv2d_bn(net, 1, kernel=1, regularizer=regularizer, training=training, relu=False)
         # root_size*32x1
 
         return logits
