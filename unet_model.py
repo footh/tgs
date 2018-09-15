@@ -372,6 +372,7 @@ class SimpleUnet(model.BaseModel):
         root_size = self.config_dict['ext']['img_size'] // (2 ** 5)
 
         block4 = ds_layers[4]
+
         # root_sizex2048
         net = self.conv2d_bn(block4, 1024, regularizer=regularizer, training=training)
         net = self.conv2d_bn(net, 512, regularizer=regularizer, training=training)
@@ -421,18 +422,6 @@ class SimpleUnet(model.BaseModel):
 
         return logits
 
-    def decoder(self, ds_layers, regularizer=None):
-        with tf.variable_scope('decode'):
-
-            us_layers = self.upsample(ds_layers, regularizer=regularizer)
-
-            with tf.variable_scope('upsample'):
-                logits = tf.add_n(us_layers, name='fuse_us')
-
-                logits = tf.squeeze(logits, axis=-1, name='squeeze')
-
-        return logits
-
     def build_model(self, inp, mode, regularizer=None):
 
         net = inp['img']
@@ -446,7 +435,7 @@ class SimpleUnet(model.BaseModel):
                                                   prefix=f'{self.name}/encode/')
 
         with tf.variable_scope('decode'):
-            logits = self.upsample(ds_layers, regularizer=regularizer, training=training)
+            logits = self.upsample_light(ds_layers, regularizer=regularizer, training=training)
 
             logits = tf.squeeze(logits, axis=-1)
 

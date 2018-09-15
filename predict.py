@@ -62,13 +62,13 @@ def build_resizes(cfg):
     max_padding = diff - min_padding
     mid_padding = diff // 2
 
-    resizes = [
-        [[min_padding, max_padding], [min_padding, max_padding], [0, 0]],
-        [[max_padding, min_padding], [min_padding, max_padding], [0, 0]],
-        [[min_padding, max_padding], [max_padding, min_padding], [0, 0]],
-        [[max_padding, min_padding], [max_padding, min_padding], [0, 0]],
-        [[mid_padding, diff - mid_padding], [mid_padding, diff - mid_padding], [0, 0]]
-    ]
+    # resizes = [
+    #     [[min_padding, max_padding], [min_padding, max_padding], [0, 0]],
+    #     [[max_padding, min_padding], [min_padding, max_padding], [0, 0]],
+    #     [[min_padding, max_padding], [max_padding, min_padding], [0, 0]],
+    #     [[max_padding, min_padding], [max_padding, min_padding], [0, 0]],
+    #     [[mid_padding, diff - mid_padding], [mid_padding, diff - mid_padding], [0, 0]]
+    # ]
 
     # resizes = [
     #     [[min_padding, max_padding], [mid_padding, diff - mid_padding], [0, 0]],
@@ -80,9 +80,9 @@ def build_resizes(cfg):
     #     [[mid_padding, diff - mid_padding], [max_padding, min_padding], [0, 0]]
     # ]
 
-    # resizes = [
-    #     [[mid_padding, diff - mid_padding], [mid_padding, diff - mid_padding], [0, 0]]
-    # ]
+    resizes = [
+        [[mid_padding, diff - mid_padding], [mid_padding, diff - mid_padding], [0, 0]]
+    ]
 
     return resizes
 
