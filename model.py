@@ -26,11 +26,13 @@ class BaseModel(object):
         return klass
 
     @staticmethod
-    def trainable_param_count():
+    def trainable_param_count(variables):
         """
         Returns count of trainable parameters
         """
-        return np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()])
+        if variables is None:
+            variables = tf.trainable_variables()
+        return np.sum([np.prod(v.get_shape().as_list()) for v in variables])
 
     @staticmethod
     def get_trainable_vars(scope_list=None):

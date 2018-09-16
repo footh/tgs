@@ -7,7 +7,7 @@ import os
 import shutil
 from random import shuffle
 
-RAW_DIR = 'raw-edit'
+RAW_DIR = 'raw'
 
 
 def _remove_files(src):
