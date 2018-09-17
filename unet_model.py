@@ -414,53 +414,53 @@ class SimpleUnet(model.BaseModel):
         """
             Decoder
         """
-        assert(len(ds_layers) == 4)
+        assert(len(ds_layers) == 5)
 
-        root_size = self.config_dict['ext']['img_size'] // (2 ** 5)
-        root_channels = 256
+        root_size = self.config_dict['ext']['img_size'] // (2 ** 4)  # 8
+        root_channels = 512
 
-        block4 = self.conv2d_bn(ds_layers[3], root_channels, kernel=1, regularizer=regularizer, training=training)
-        tf.logging.info(block4.shape.as_list())
-        # root_sizex256
+        block4 = self.conv2d_bn(ds_layers[4], root_channels, kernel=1, regularizer=regularizer, training=training)
+        # root_sizex512
         net = self.conv2d_bn(block4, root_channels, regularizer=regularizer, training=training)
         net = self.conv2d_bn(net, root_channels / 2, regularizer=regularizer, training=training)
         net = tf.image.resize_nearest_neighbor(net, (root_size * 2, root_size * 2))
-        # root_size*2x128
-
-        block3 = self.conv2d_bn(ds_layers[2], root_channels / 2, kernel=1, regularizer=regularizer, training=training)
-        tf.logging.info(block3.shape.as_list())
-        net = tf.concat((block3, net), axis=-1)
         # root_size*2x256
+
+        block3 = self.conv2d_bn(ds_layers[3], root_channels / 2, kernel=1, regularizer=regularizer, training=training)
+        net = tf.concat((block3, net), axis=-1)
+        # root_size*2x512
         net = self.conv2d_bn(net, root_channels / 2, regularizer=regularizer, training=training)
         net = self.conv2d_bn(net, root_channels / 4, regularizer=regularizer, training=training)
         net = tf.image.resize_nearest_neighbor(net, (root_size * 4, root_size * 4))
-        # root_size*4x64
-
-        block2 = self.conv2d_bn(ds_layers[1], root_channels / 4, kernel=1, regularizer=regularizer, training=training)
-        tf.logging.info(block2.shape.as_list())
-        net = tf.concat((block2, net), axis=-1)
         # root_size*4x128
+
+        block2 = self.conv2d_bn(ds_layers[2], root_channels / 4, kernel=1, regularizer=regularizer, training=training)
+        net = tf.concat((block2, net), axis=-1)
+        # root_size*4x256
         net = self.conv2d_bn(net, root_channels / 4, regularizer=regularizer, training=training)
         net = self.conv2d_bn(net, root_channels / 8, regularizer=regularizer, training=training)
         net = tf.image.resize_nearest_neighbor(net, (root_size * 8, root_size * 8))
-        # root_size*8x32
-
-        block1 = self.conv2d_bn(ds_layers[0], root_channels / 8, kernel=1, regularizer=regularizer, training=training)
-        tf.logging.info(block1.shape.as_list())
-        net = tf.concat((block1, net), axis=-1)
         # root_size*8x64
+
+        block1 = self.conv2d_bn(ds_layers[1], root_channels / 8, kernel=1, regularizer=regularizer, training=training)
+        net = tf.concat((block1, net), axis=-1)
+        # root_size*8x128
         net = self.conv2d_bn(net, root_channels / 8, regularizer=regularizer, training=training)
-        net = self.conv2d_bn(net, root_channels / 16, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, root_channels / 8, regularizer=regularizer, training=training)
+        net = tf.image.resize_nearest_neighbor(net, (root_size * 16, root_size * 16))
+        # root_size*16x64
 
-        net = tf.image.resize_nearest_neighbor(net, (root_size * 32, root_size * 32))
-        # root_size*32x16
-        tf.logging.info(net.shape.as_list())
+        top = ds_layers[0]
+        net = tf.concat((top, net), axis=-1)
+        # root_size*16x64
+        net = self.conv2d_bn(net, root_channels / 8, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, root_channels / 8, regularizer=regularizer, training=training)
 
-        # root_size*32x32
-        net = self.conv2d_bn(net, root_channels / 16, kernel=1, regularizer=regularizer, training=training)
-        # root_size*32x32
+        # root_size*16x64
+        net = self.conv2d_bn(net, root_channels / 8, kernel=1, regularizer=regularizer, training=training)
+        # root_size*16x64
         logits = self.conv2d_bn(net, 1, kernel=1, regularizer=regularizer, training=training, relu=False)
-        # root_size*32x1
+        # root_size*16x1
 
         return logits
 
@@ -477,7 +477,7 @@ class SimpleUnet(model.BaseModel):
                                                   prefix=f'{self.name}/encode/')
 
         with tf.variable_scope('decode'):
-            logits = self.upsample_light(ds_layers, regularizer=regularizer, training=training)
+            logits = self.upsample_lighter(ds_layers, regularizer=regularizer, training=training)
 
             logits = tf.squeeze(logits, axis=-1)
 
