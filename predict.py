@@ -214,6 +214,7 @@ def run_prediction(save_file_name, checkpoint_paths, cfg,
 
 
 def run_submission(save_file_name, prob_thresh=0.5):
+    tf.logging.info(f'Using probability thresh: {prob_thresh}')
 
     run_dir = os.path.join(PREDICTION_DIR, PREDICTION_RUN_DIR)
     submission_dir = os.path.join(PREDICTION_DIR, SUBMISSION_DIR)

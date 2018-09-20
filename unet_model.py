@@ -346,7 +346,8 @@ class SimpleUnet(model.BaseModel):
         # root_size*32x32
         net = self.conv2d_bn(net, 32, kernel=1, regularizer=regularizer, training=training)
         # root_size*32x32
-        logits = self.conv2d_bn(net, 1, kernel=1, regularizer=regularizer, training=training, relu=False)
+        logits = tf.layers.conv2d(net, 1, 1, kernel_regularizer=regularizer)
+
         # root_size*32x1
 
         return logits
@@ -405,7 +406,7 @@ class SimpleUnet(model.BaseModel):
         # root_size*32x32
         net = self.conv2d_bn(net, 32, kernel=1, regularizer=regularizer, training=training)
         # root_size*32x32
-        logits = self.conv2d_bn(net, 1, kernel=1, regularizer=regularizer, training=training, relu=False)
+        logits = tf.layers.conv2d(net, 1, 1, kernel_regularizer=regularizer)
         # root_size*32x1
 
         return logits
@@ -459,7 +460,7 @@ class SimpleUnet(model.BaseModel):
         # root_size*16x64
         net = self.conv2d_bn(net, root_channels / 8, kernel=1, regularizer=regularizer, training=training)
         # root_size*16x64
-        logits = self.conv2d_bn(net, 1, kernel=1, regularizer=regularizer, training=training, relu=False)
+        logits = tf.layers.conv2d(net, 1, 1, kernel_regularizer=regularizer)
         # root_size*16x1
 
         return logits
