@@ -46,5 +46,5 @@ checkpoint:
   keep: 80
   warm_start:
     checkpoint_path: './tgs/training-runs/init/resnet_v1_50.ckpt'
-    var_map: './tgs/training-runs/init/resnet_v1_50-sunet.json'
+    var_map: './tgs/training-runs/init/resnet_v1_50-gfrnet.json'
     var_init: '.*resnet_v1_50.*'

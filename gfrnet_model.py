@@ -18,14 +18,14 @@ class GatedFRefineUnet(model.BaseModel):
 
         self.name = 'gfrnet' if name is None else name
 
-    def gate_unit(self, layer_i, layer_iplus1, regularizer=None, training=True):
+    def gate_unit(self, layer_i, layer_iplus1, channels=128, regularizer=None, training=True):
         """
             Calculate and return the gate unit, aka M-f in paper
         """
-        i = self.conv2d_bn(layer_i, self.config_dict['ext']['gate_channels'],
+        i = self.conv2d_bn(layer_i, channels,
                            regularizer=regularizer, training=training)
 
-        iplus1 = self.conv2d_bn(layer_iplus1, self.config_dict['ext']['gate_channels'],
+        iplus1 = self.conv2d_bn(layer_iplus1, channels,
                                 regularizer=regularizer, training=training)
 
         size = tf.shape(i)[1]
@@ -54,6 +54,7 @@ class GatedFRefineUnet(model.BaseModel):
         """
         assert(len(ds_layers) == 5)
         img_size = self.config_dict['ext']['img_size']
+        gate_channels = self.config_dict['ext']['gate_channels']
 
         logits = []
 
@@ -61,19 +62,19 @@ class GatedFRefineUnet(model.BaseModel):
         PmG = tf.layers.conv2d(ds_layers[4], 1, 3, padding='same', kernel_regularizer=regularizer)
         logits.append(tf.squeeze(PmG, axis=-1))
 
-        M1 = self.gate_unit(ds_layers[3], ds_layers[4], regularizer=regularizer, training=training)
+        M1 = self.gate_unit(ds_layers[3], ds_layers[4], gate_channels, regularizer=regularizer, training=training)
         PmRU1 = self.gated_refinement_unit(PmG, M1, regularizer=regularizer, training=training)
         logits.append(tf.squeeze(PmRU1, axis=-1))
 
-        M2 = self.gate_unit(ds_layers[2], ds_layers[3], regularizer=regularizer, training=training)
+        M2 = self.gate_unit(ds_layers[2], ds_layers[3], gate_channels // 2, regularizer=regularizer, training=training)
         PmRU2 = self.gated_refinement_unit(PmRU1, M2, regularizer=regularizer, training=training)
         logits.append(tf.squeeze(PmRU2, axis=-1))
 
-        M3 = self.gate_unit(ds_layers[1], ds_layers[2], regularizer=regularizer, training=training)
+        M3 = self.gate_unit(ds_layers[1], ds_layers[2], gate_channels // 4, regularizer=regularizer, training=training)
         PmRU3 = self.gated_refinement_unit(PmRU2, M3, regularizer=regularizer, training=training)
         logits.append(tf.squeeze(PmRU3, axis=-1))
 
-        M4 = self.gate_unit(ds_layers[0], ds_layers[1], regularizer=regularizer, training=training)
+        M4 = self.gate_unit(ds_layers[0], ds_layers[1], gate_channels // 8, regularizer=regularizer, training=training)
         PmRU4 = self.gated_refinement_unit(PmRU3, M4, regularizer=regularizer, training=training)
 
         PmRU4 = tf.image.resize_bilinear(PmRU4, (img_size, img_size), align_corners=True)
