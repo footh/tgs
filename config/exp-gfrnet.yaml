@@ -1,11 +1,11 @@
 # Model parameters -----------------------------------
 model:
   label_cnt: 1
-  class: 'ResnetV1Unet'
+  class: 'GatedFRefineUnet'
   ext:
     img_size: 128
-    encoder_l2_decay: 0.00000001
-    process_channels: 128
+    encoder_l2_decay: 0.0001
+    gate_channels: 128
 # Metric parameters ----------------------------------
 metric:
   map_iou:
@@ -14,10 +14,10 @@ metric:
 # Data parameters ------------------------------------
 data:
   class: 'ImageDataInput'
-  train_file_pattern: ['./tgs/data/train-f/7/tfrecord/tgs*']
-  valid_file_pattern: ['./tgs/data/valid-f/7/tfrecord/tgs*']
+  train_file_pattern: ['./tgs/data/train/tfrecord/tgs*']
+  valid_file_pattern: ['./tgs/data/valid/tfrecord/tgs*']
   test_file_pattern: ['./tgs/data/test/tfrecord/tgs*']
-  shuf_buf: 5000
+  shuf_buf: 13600
   parallel_calls: 4
   ext:
     resize_dim: 128
@@ -25,8 +25,8 @@ data:
     min_padding: 5
 # Base training parameters ---------------------------
 batch_size: 20
-train_steps: 6000
-valid_steps: 20
+train_steps: 12800
+valid_steps: 30
 learning_rate:
   base: 0.0008
   exponential_decay:
@@ -38,13 +38,13 @@ optimizer:
   adam:
     epsilon: 0.0001
 clip_grad_norm:
-reduce_grad: ['resnet_v1_50', 0.2]
+reduce_grad: ['resnet_v1_50', 0.1]
 ema_decay:
 log_steps: 10
 checkpoint:
-  save_steps: 1000
+  save_steps: 800
   keep: 80
   warm_start:
     checkpoint_path: './tgs/training-runs/init/resnet_v1_50.ckpt'
-    var_map: './tgs/training-runs/init/resnet_v1_50-unet.json'
+    var_map: './tgs/training-runs/init/resnet_v1_50-sunet.json'
     var_init: '.*resnet_v1_50.*'

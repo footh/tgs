@@ -19,8 +19,8 @@ class BaseModel(object):
         """
         Returns the model class object from the class name string passed in
         """
-        from tgs import unet_model, mask_model
-        modules = [unet_model, mask_model]
+        from tgs import unet_model, mask_model, gfrnet_model
+        modules = [unet_model, mask_model, gfrnet_model]
         classes = [getattr(module, class_name, None) for module in modules]
         klass = next(cls for cls in classes if cls)
         return klass

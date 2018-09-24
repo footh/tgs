@@ -215,9 +215,7 @@ class ImageDataInput(DataInput):
             img, resize_param_actual = self.resize(img, resize_param)
             if mode != tf.estimator.ModeKeys.PREDICT:
                 mask, _ = self.resize(mask, resize_param_actual)
-
-            # Tensorflow image operations require 1 channel for grayscales. So need to do this here for the model.
-            if mode != tf.estimator.ModeKeys.PREDICT:
+                # Tensorflow image operations require 1 channel for grayscales. The model doesn't need this channel.
                 mask = tf.squeeze(mask, axis=-1)
 
             if self.preprocess:
