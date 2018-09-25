@@ -56,6 +56,23 @@ class ImageDataInput(DataInput):
     Reads TFRecords image Examples.
     """
     @staticmethod
+    def depth(img):
+        size = tf.shape(img)[0]
+        img = tf.cast(img, tf.float32)
+
+        # Creating depth slice which is rows of 1/size, 2/size...size/size
+        d = tf.cast(tf.expand_dims(tf.range(1, size + 1), axis=-1), tf.float32)
+        d = tf.tile(d, [1, size])
+        d = tf.expand_dims(tf.divide(d, tf.cast(size, tf.float32)), axis=-1)
+
+        # Second channel is depth slice scaled to uint size. Third channel is depth slice * image values
+        ch2 = tf.multiply(d, 255.)
+        ch3 = tf.multiply(d, img)
+
+        img = tf.cast(tf.concat([img, ch2, ch3], axis=-1), tf.uint8)
+        return img
+
+    @staticmethod
     def augment(img, mask, augment_dict=None):
         """
             Apply various random augmentations to image and mask
@@ -184,6 +201,7 @@ class ImageDataInput(DataInput):
         (the augmentation can be turned off on evaluation via the input_fn)
         """
         dataset = self.build_dataset(mode)
+        use_depth = self.config_dict['ext']['depth']
 
         # Use `tf.parse_single_example()` to extract data from a `tf.Example`
         # protocol buffer, and perform any additional per-record preprocessing.
@@ -200,12 +218,17 @@ class ImageDataInput(DataInput):
 
             example = tf.parse_single_example(record, feature_map)
 
-            img = tf.image.decode_png(example['img'])
+            channels = 1 if use_depth else 0
+            img = tf.image.decode_png(example['img'], channels)
+
+            if use_depth:
+                img = self.depth(img)
 
             if mode != tf.estimator.ModeKeys.PREDICT:
                 mask = tf.image.decode_png(example['mask'])
             else:
                 mask = tf.constant([[[0]]])
+
 
             # Augmenting, if needed
             if augment_dict is not None:
