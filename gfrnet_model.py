@@ -77,8 +77,41 @@ class GatedFRefineUnet(model.BaseModel):
         M4 = self.gate_unit(ds_layers[0], ds_layers[1], gate_channels // 8, regularizer=regularizer, training=training)
         PmRU4 = self.gated_refinement_unit(PmRU3, M4, regularizer=regularizer, training=training)
 
-        PmRU4 = tf.image.resize_bilinear(PmRU4, (img_size, img_size), align_corners=True)
+        # PmRU4 = tf.image.resize_bilinear(PmRU4, (img_size, img_size), align_corners=True)
+        PmRU4 = tf.layers.conv2d_transpose(PmRU4, 1, 4, 2, padding='same', kernel_regularizer=regularizer)
+
         logits.append(tf.squeeze(PmRU4, axis=-1))
+
+        return logits[::-1]
+
+    def upsample2(self, ds_layers, regularizer=None, training=True):
+        """
+            Decoder
+        """
+        assert(len(ds_layers) == 4)
+        img_size = self.config_dict['ext']['img_size']
+        gate_channels = self.config_dict['ext']['gate_channels']
+
+        logits = []
+
+        # Coarse prediction
+        PmG = tf.layers.conv2d(ds_layers[3], 1, 3, padding='same', kernel_regularizer=regularizer)
+        logits.append(tf.squeeze(PmG, axis=-1))
+
+        M1 = self.gate_unit(ds_layers[2], ds_layers[3], gate_channels, regularizer=regularizer, training=training)
+        PmRU1 = self.gated_refinement_unit(PmG, M1, regularizer=regularizer, training=training)
+        logits.append(tf.squeeze(PmRU1, axis=-1))
+
+        M2 = self.gate_unit(ds_layers[1], ds_layers[2], gate_channels // 2, regularizer=regularizer, training=training)
+        PmRU2 = self.gated_refinement_unit(PmRU1, M2, regularizer=regularizer, training=training)
+        logits.append(tf.squeeze(PmRU2, axis=-1))
+
+        M3 = self.gate_unit(ds_layers[0], ds_layers[1], gate_channels // 4, regularizer=regularizer, training=training)
+        PmRU3 = self.gated_refinement_unit(PmRU2, M3, regularizer=regularizer, training=training)
+        logits.append(tf.squeeze(PmRU3, axis=-1))
+
+        PmRU3 = tf.image.resize_bilinear(PmRU4, (img_size, img_size), align_corners=True)
+        logits.append(tf.squeeze(PmRU3, axis=-1))
 
         return logits[::-1]
 
@@ -103,14 +136,19 @@ class GatedFRefineUnet(model.BaseModel):
         return tf.nn.sigmoid(logits[0])
 
     def loss_op(self, labels, logits):
+        # w = [1.0, 1.0, 1.0, 1.0, 1.0]
         loss = tf.constant(0, tf.float32)
-        for lg in logits:
+        for i, lg in enumerate(logits):
             tf.logging.info(lg.shape.as_list())
             s = tf.shape(lg)[1:3]
             lb = tf.expand_dims(labels, axis=-1)
             lb = tf.image.resize_bilinear(lb, s, align_corners=True)
             lb = tf.squeeze(lb, axis=-1)
             lb = tf.cast(tf.greater(lb, 0.5), tf.float32)
-            loss = loss + tf.losses.sigmoid_cross_entropy(lb, lg)
+
+            bce_loss = tf.losses.sigmoid_cross_entropy(lb, lg)
+            lov_loss = lovasz.lovasz_hinge(lg, lb)
+
+            loss = loss + (bce_loss + lov_loss) / 2
 
         return loss
