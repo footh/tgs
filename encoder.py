@@ -65,34 +65,6 @@ def build_resnet50_v1(img_input, l2_weight_decay=0.01, is_training=True, prefix=
     return conv1, block1, block2, block3, block4
 
 
-def build_resnet50_v1_custom(img_input, l2_weight_decay=0.01, is_training=True, prefix=''):
-    """
-        Builds resnet50_v1 model from slim, with strides reversed.
-
-        Returns the last five block outputs to be used transposed convolution layers
-    """
-    regularizer = tf.contrib.layers.l2_regularizer(scale=l2_weight_decay)
-
-    net = tf.layers.conv2d(img_input, 64, 3, padding='same', use_bias=False, kernel_regularizer=regularizer)
-    net = tf.layers.batch_normalization(net, training=is_training)
-    net = tf.nn.relu(net)
-
-    net = tf.layers.conv2d(net, 64, 3, padding='same', use_bias=False, kernel_regularizer=regularizer)
-    net = tf.layers.batch_normalization(net, training=is_training)
-    root = tf.nn.relu(net)
-
-    net = tf.layers.max_pooling2d(root, 2, 2)
-
-    with slim.arg_scope(resnet_v1.resnet_arg_scope(weight_decay=l2_weight_decay)):
-        block4, endpoints = resnet_v1_50(net, is_training=is_training, global_pool=False, include_root_block=False)
-
-    block3 = endpoints[f'{prefix}resnet_v1_50/block3']
-    block2 = endpoints[f'{prefix}resnet_v1_50/block2']
-    block1 = endpoints[f'{prefix}resnet_v1_50/block1']
-
-    return root, block1, block2, block3, block4
-
-
 def resnet_v2_50(inputs,
                  num_classes=None,
                  is_training=True,

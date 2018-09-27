@@ -33,7 +33,10 @@ learning_rate:
   exponential_decay:
     decay_steps: 800
     decay: 0.8
-l2_weight_decay: 0.00000001
+#  cosine_decay:
+#    steps: 6000
+#    m_mul: 0.65
+#    alpha: 0.01l2_weight_decay: 0.00000001
 l2_normalize:
 optimizer:
   adam:
