@@ -4,6 +4,9 @@ import math
 
 VGG_RGB_MEANS = [123.68, 116.78, 103.94]
 
+TVISION_MEAN = [0.485, 0.456, 0.406]
+TVISION_STD = [0.229, 0.224, 0.225]
+
 
 class DataInput(object):
 
@@ -201,7 +204,7 @@ class ImageDataInput(DataInput):
         (the augmentation can be turned off on evaluation via the input_fn)
         """
         dataset = self.build_dataset(mode)
-        use_depth = self.config_dict['ext']['depth']
+        use_depth = self.config_dict['ext']['depth'] if 'depth' in self.config_dict['ext'] else False
 
         # Use `tf.parse_single_example()` to extract data from a `tf.Example`
         # protocol buffer, and perform any additional per-record preprocessing.
@@ -229,7 +232,6 @@ class ImageDataInput(DataInput):
             else:
                 mask = tf.constant([[[0]]])
 
-
             # Augmenting, if needed
             if augment_dict is not None:
                 img, mask = self.augment(img, mask, augment_dict)
@@ -247,6 +249,10 @@ class ImageDataInput(DataInput):
                     # Need to make this a 3d list to infer channel shape
                     img = tf.subtract(img, [0.5, 0.5, 0.5])
                     img = tf.multiply(img, [2.0, 2.0, 2.0])
+                elif 'preprocess' in self.config_dict['ext'] and self.config_dict['ext']['preprocess'] == 'tvision':
+                    img = tf.image.convert_image_dtype(img, tf.float32)
+                    img = tf.subtract(img, TVISION_MEAN)
+                    img = tf.divide(img, TVISION_STD)
                 else:
                     img = tf.subtract(tf.cast(img, tf.float32), VGG_RGB_MEANS)
 

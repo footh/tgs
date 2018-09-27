@@ -5,6 +5,17 @@ from tensorflow.contrib.slim.python.slim.nets import resnet_v2
 # from tensorflow.contrib.slim.python.slim.nets import inception_resnet_v2
 
 
+def conv2d_bn(inp, filters, kernel=3, strides=1, padding='same', dilation=1, regularizer=None, training=True, relu=True):
+    net = tf.layers.conv2d(inp, filters, kernel, strides=strides, dilation_rate=dilation,
+                           padding=padding, use_bias=False, kernel_regularizer=regularizer)
+    net = tf.layers.batch_normalization(net, training=training)
+
+    if relu:
+        net = tf.nn.relu(net)
+
+    return net
+
+
 def resnet_v1_50(inputs,
                  num_classes=None,
                  is_training=True,
@@ -159,3 +170,115 @@ def build_inception_resnet_v2(img_input, l2_weight_decay=0.01, is_training=True,
     block1 = endpoints[f'{prefix}Conv2d_2b_3x3']
 
     return block1, block2, block3, block4, block5
+
+
+def build_resnet34(img_input, l2_weight_decay=0.01, is_training=True, prefix=''):
+    """
+        Build resnet34 model
+    """
+    regularizer = tf.contrib.layers.l2_regularizer(scale=l2_weight_decay)
+
+    with tf.variable_scope('resnet34'):
+        # Begin initial conv block
+        conv = conv2d_bn(img_input, 64, kernel=7, strides=2, regularizer=regularizer, training=is_training)
+        end = tf.layers.max_pooling2d(conv, 3, strides=2, padding='same')
+
+        # Begin first block (3 sub-blocks)
+        with tf.variable_scope('block1'):
+            net = conv2d_bn(end, 64, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 64, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 64, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 64, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 64, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 64, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            block1 = tf.nn.relu(net)
+            # End first block
+
+        # Begin second block (4 sub-blocks)
+        with tf.variable_scope('block2'):
+            net = conv2d_bn(block1, 128, strides=2, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 128, regularizer=regularizer, training=is_training, relu=False)
+            block1_resize = conv2d_bn(block1, 128, kernel=1, strides=2,
+                                      regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(block1_resize, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 128, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 128, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 128, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 128, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 128, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 128, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            block2 = tf.nn.relu(net)
+            # End second block
+
+        # Begin third block (6 sub-blocks)
+        with tf.variable_scope('block3'):
+            net = conv2d_bn(block2, 256, strides=2, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 256, regularizer=regularizer, training=is_training, relu=False)
+            block2_resize = conv2d_bn(block2, 256, kernel=1, strides=2,
+                                      regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(block2_resize, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 256, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 256, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 256, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 256, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 256, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 256, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 256, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 256, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 256, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 256, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            block3 = tf.nn.relu(net)
+            # End third block
+
+        # Begin fourth block (3 sub-blocks)
+        with tf.variable_scope('block4'):
+            net = conv2d_bn(block3, 512, strides=2, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 512, regularizer=regularizer, training=is_training, relu=False)
+            block3_resize = conv2d_bn(block3, 512, kernel=1, strides=2,
+                                      regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(block3_resize, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 512, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 512, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            end = tf.nn.relu(net)
+
+            net = conv2d_bn(end, 512, regularizer=regularizer, training=is_training)
+            net = conv2d_bn(net, 512, regularizer=regularizer, training=is_training, relu=False)
+            net = tf.add(end, net)
+            block4 = tf.nn.relu(net)
+            # End fourth block
+
+    return conv, block1, block2, block3, block4

@@ -2,6 +2,8 @@ import tensorflow as tf
 import numpy as np
 import os
 import json
+import torch
+import pandas as pd
 
 
 def checkpoint_average(checkpoints, output_path):
@@ -98,3 +100,43 @@ def build_warm_start_map(checkpoint_path, prefix):
         json.dump(var_prefix_dict, f)
 
     return var_prefix_dict
+
+
+def torch_to_checkpoint(map_file, torch_file,  checkpoint_path):
+    """
+        Converts a torch .pth file to tensorflow checkpoint file given a mapping of torch keys to tensorflow names
+    """
+
+    mapping = pd.read_csv(map_file, header=None)
+    torch_vars = torch.load(torch_file)
+
+    # Building new variables and assign ops
+    # global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)
+    values = []
+    placeholders = []
+    assign_ops = []
+    for _, row in mapping.iterrows():
+        torch_name = row[0].split(':')[0]
+        tf_name = row[1].split(':')[0]
+
+        torch_val = torch_vars[torch_name].data.numpy()
+        torch_val = np.transpose(torch_val)
+        values.append(torch_val)
+
+        placeholder = tf.placeholder(tf.float32, torch_val.shape)
+        placeholders.append(placeholder)
+
+        var = tf.get_variable(tf_name, shape=torch_val.shape, dtype=tf.float32)
+
+        assign_ops.append(tf.assign(var, placeholder))
+
+    saver = tf.train.Saver(tf.global_variables())
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+
+        for op, ph, val in zip(assign_ops, placeholders, values):
+            sess.run(op, {ph: val})
+
+        tf.logging.info(f'Saving new checkpoint to: {checkpoint_path}')
+        saver.save(sess, checkpoint_path)

@@ -1,7 +1,7 @@
 # Model parameters -----------------------------------
 model:
   label_cnt: 1
-  class: 'ResnetV1Unet'
+  class: 'Resnet34Unet'
   ext:
     img_size: 128
     encoder_l2_decay: 0.0001
@@ -23,6 +23,7 @@ data:
     resize_dim: 128
     resize_method: 'pad'
     min_padding: 5
+    preprocessing: 'tvision'
 # Base training parameters ---------------------------
 batch_size: 20
 train_steps: 12800
@@ -38,13 +39,13 @@ optimizer:
   adam:
     epsilon: 0.0001
 clip_grad_norm:
-reduce_grad: ['resnet_v1_50', 0.1]
+reduce_grad: ['resnet34', 0.1]
 ema_decay:
 log_steps: 10
 checkpoint:
   save_steps: 800
   keep: 80
   warm_start:
-    checkpoint_path: './tgs/training-runs/init/resnet_v1_50.ckpt'
-    var_map: './tgs/training-runs/init/resnet_v1_50-unet.json'
-    var_init: '.*resnet_v1_50.*'
+    checkpoint_path: './tgs/training-runs/init/resnet34/resnet34'
+    var_map: './tgs/training-runs/init/resnet34/resnet34-unet.json'
+    var_init: '.*resnet34.*'
