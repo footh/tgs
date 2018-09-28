@@ -23,7 +23,7 @@ data:
     resize_dim: 128
     resize_method: 'pad'
     min_padding: 5
-    preprocessing: 'tvision'
+    preprocess: 'tvision'
 # Base training parameters ---------------------------
 batch_size: 20
 train_steps: 12800
@@ -36,7 +36,8 @@ learning_rate:
 #  cosine_decay:
 #    steps: 6000
 #    m_mul: 0.65
-#    alpha: 0.01l2_weight_decay: 0.00000001
+#    alpha: 0.01
+l2_weight_decay: 0.00000001
 l2_normalize:
 optimizer:
   adam:

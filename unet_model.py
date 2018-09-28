@@ -612,6 +612,63 @@ class Simple34Unet(model.BaseModel):
 
         return logits
 
+    def upsample_hyper(self, ds_layers, regularizer=None, training=True):
+        """
+            Decoder
+        """
+        assert(len(ds_layers) == 5)
+
+        root_size = self.config_dict['ext']['img_size'] // (2 ** 4)
+
+        root_channels = 512
+        hyper_channels = 64
+
+        center = self.conv2d_bn(ds_layers[4], root_channels, regularizer=regularizer, training=training)
+        center = self.conv2d_bn(center, root_channels // 2, regularizer=regularizer, training=training)
+        center = tf.layers.max_pooling2d(center, 2, 2, padding='same')
+
+        net = tf.image.resize_bilinear(center, (root_size, root_size), align_corners=True)
+        net = tf.concat((net, ds_layers[4]), axis=-1)
+        net = self.conv2d_bn(net, root_channels, regularizer=regularizer, training=training)
+        d5 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+
+        net = tf.image.resize_bilinear(d5, (root_size * 2, root_size * 2), align_corners=True)
+        net = tf.concat((net, ds_layers[3]), axis=-1)
+        net = self.conv2d_bn(net, root_channels // 2, regularizer=regularizer, training=training)
+        d4 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+
+        net = tf.image.resize_bilinear(d4, (root_size * 4, root_size * 4), align_corners=True)
+        net = tf.concat((net, ds_layers[2]), axis=-1)
+        net = self.conv2d_bn(net, root_channels // 4, regularizer=regularizer, training=training)
+        d3 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+
+        net = tf.image.resize_bilinear(d3, (root_size * 8, root_size * 8), align_corners=True)
+        net = tf.concat((net, ds_layers[1]), axis=-1)
+        net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
+        d2 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+
+        net = tf.image.resize_bilinear(d2, (root_size * 16, root_size * 16), align_corners=True)
+        # Why not concat with ds_layers[0] here? Heng example doesn't use it, but perhaps it should
+        # Also, should this be reduced to 32? Again, just following the example
+        net = self.conv2d_bn(net, root_channels // 16, regularizer=regularizer, training=training)
+        d1 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+        # Each one of these d* variables use those spatial and channel blocks. Need to figure out what those are.
+
+        # hypercolumn
+        d2 = tf.image.resize_bilinear(d2, (root_size * 16, root_size * 16), align_corners=True)
+        d3 = tf.image.resize_bilinear(d3, (root_size * 16, root_size * 16), align_corners=True)
+        d4 = tf.image.resize_bilinear(d4, (root_size * 16, root_size * 16), align_corners=True)
+        d5 = tf.image.resize_bilinear(d5, (root_size * 16, root_size * 16), align_corners=True)
+        net = tf.concat((d1, d2, d3, d4, d5), axis=-1)
+
+        net = tf.layers.dropout(net, rate=0.5, training=training)
+
+        # In Heng example, this doesn't have the batch norm. Maybe a mistake on his part. Think it's ok to keep.
+        net = self.conv2d_bn(net, root_channels // 8, kernel=3, regularizer=regularizer, training=training)
+        logits = tf.layers.conv2d(net, 1, 1, kernel_regularizer=regularizer)
+
+        return logits
+
     def build_model(self, inp, mode, regularizer=None):
 
         net = inp['img']
