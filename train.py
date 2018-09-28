@@ -128,8 +128,16 @@ def train_and_eval(cfg, dataset, estimator, hooks=None):
 
 def train(cfg, dataset, estimator, hooks=None):
     # from tensorflow.python.training import saver
+    resize_dim = cfg.get('data.ext.resize_dim')
+    diff = resize_dim - IMG_DIM
+    mid_padding = diff // 2
+    resize = [[mid_padding, diff - mid_padding], [mid_padding, diff - mid_padding], [0, 0]]
 
-    eval_loss_streak_max = 5
+    # augment = {'rotation': None, 'shear': None, 'flip': None, 'rot90': None}
+    # augment = {'flip': None, 'rot90': None}
+    augment = {'flip': None, 'crop': None, 'brightness': None}
+
+    eval_loss_streak_max = 2
     exp_decay_base = 0.8
 
     lr_base = cfg.get('learning_rate.base')
@@ -141,7 +149,7 @@ def train(cfg, dataset, estimator, hooks=None):
     while global_step < cfg.get('train_steps'):
 
         # Train up to configured steps
-        estimator.train(lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN),
+        estimator.train(lambda: dataset.input_fn(tf.estimator.ModeKeys.TRAIN, augment, resize),
                         steps=cfg.get('checkpoint.save_steps'),
                         hooks=hooks)
 
@@ -151,7 +159,7 @@ def train(cfg, dataset, estimator, hooks=None):
             estimator._warm_start_settings = None
 
         # Evaluate up to configured steps
-        evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL),
+        evaluation = estimator.evaluate(input_fn=lambda: dataset.input_fn(tf.estimator.ModeKeys.EVAL, None, resize),
                                         steps=cfg.get('valid_steps'))
 
         # Evaluation result looks like below:
@@ -187,8 +195,8 @@ def main(_):
 
     estimator = build_estimator(cfg, FLAGS.model_dir)
 
-    train_and_eval(cfg, dataset, estimator)
-    # train(cfg, dataset, estimator)
+    # train_and_eval(cfg, dataset, estimator)
+    train(cfg, dataset, estimator)
 
 
 tf.app.flags.DEFINE_string(

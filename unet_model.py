@@ -539,3 +539,116 @@ class SimpleUnet(model.BaseModel):
         lov_loss = lovasz.lovasz_hinge(logits, labels)
 
         return (bce_loss + lov_loss) / 2
+
+
+class Simple34Unet(model.BaseModel):
+    """
+        Unet model that captures common functionality for upsampling
+    """
+
+    def __init__(self, config_dict, name=None):
+        super().__init__(config_dict)
+        assert 'img_size' in config_dict['ext'].keys(), "img_size must be provided"
+        assert 'encoder_l2_decay' in config_dict['ext'].keys(), "encoder_l2_decay must be provided"
+
+        self.name = 'simple34_unet' if name is None else name
+
+    def upsample(self, ds_layers, regularizer=None, training=True):
+        """
+            Decoder
+        """
+        assert(len(ds_layers) == 5)
+
+        root_size = self.config_dict['ext']['img_size'] // (2 ** 4)
+
+        # root_channels = tf.shape(ds_layers[4])[-1]
+        root_channels = 512
+
+        # root_sizex512
+        net = self.conv2d_bn(ds_layers[4], root_channels, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, root_channels // 2, regularizer=regularizer, training=training)
+        net = tf.image.resize_bilinear(net, (root_size * 2, root_size * 2), align_corners=True)
+        # root_size*2x256
+
+        net = tf.concat((ds_layers[3], net), axis=-1)
+        # root_size*2x512
+        net = self.conv2d_bn(net, root_channels // 2, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, root_channels // 4, regularizer=regularizer, training=training)
+        net = tf.image.resize_bilinear(net, (root_size * 4, root_size * 4), align_corners=True)
+        # root_size*4x128
+
+        net = tf.concat((ds_layers[2], net), axis=-1)
+        # root_size*4x256
+        net = self.conv2d_bn(net, root_channels // 4, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
+        net = tf.image.resize_bilinear(net, (root_size * 8, root_size * 8), align_corners=True)
+        # root_size*8x64
+
+        net = tf.concat((ds_layers[1], net), axis=-1)
+        # root_size*8x128
+        net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
+        net = tf.image.resize_nearest_neighbor(net, (root_size * 16, root_size * 16))
+        # root_size*16x64
+
+        top = ds_layers[0]
+        net = tf.concat((top, net), axis=-1)
+        # root_size*16x128
+        net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
+        net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
+        # root_size*16x64
+
+        # Since channels are remaining the same, could use bilinear initializer
+        # net = tf.layers.conv2d_transpose(net, root_channels // 8, 4, 2, padding='same',
+        #                                  kernel_regularizer=regularizer, use_bias=False)
+        # net = tf.layers.batch_normalization(net, training=training)
+        # net = tf.nn.relu(net)
+
+        # root_size*32x64
+        net = self.conv2d_bn(net, root_channels // 8, kernel=1, regularizer=regularizer, training=training)
+        # root_size*32x64
+        logits = tf.layers.conv2d(net, 1, 1, kernel_regularizer=regularizer)
+        # root_size*32x1
+
+        return logits
+
+    def build_model(self, inp, mode, regularizer=None):
+
+        net = inp['img']
+
+        training = (mode == tf.estimator.ModeKeys.TRAIN)
+
+        with tf.variable_scope('encode'):
+            ds_layers = encoder.build_resnet34(net,
+                                               l2_weight_decay=self.config_dict['ext']['encoder_l2_decay'],
+                                               is_training=training,
+                                               prefix=f'{self.name}/encode/')
+
+        with tf.variable_scope('decode'):
+            logits = self.upsample(ds_layers, regularizer=regularizer, training=training)
+
+            logits = tf.squeeze(logits, axis=-1)
+
+        return logits
+
+    def logits_to_probs(self, logits):
+        return tf.nn.sigmoid(logits)
+
+    def loss_op(self, labels, logits):
+        weights = 1.
+        if 'zero_mask_weight' in self.config_dict['ext'] and self.config_dict['ext']['zero_mask_weight'] is not None:
+            tf.logging.info(f"Using zero_mask_weight: {self.config_dict['ext']['zero_mask_weight']}")
+            zero_masks = tf.equal(tf.reduce_sum(labels, axis=(1, 2)), 0)
+            nonzero_masks = tf.logical_not(zero_masks)
+
+            weights = tf.cast(zero_masks, tf.float32) * self.config_dict['ext']['zero_mask_weight']
+            weights = weights + tf.cast(nonzero_masks, tf.float32)
+            weights = tf.expand_dims(weights, axis=-1)
+            weights = tf.expand_dims(weights, axis=-1)
+            labels_shape = tf.shape(labels)
+            weights = tf.tile(weights, [1, labels_shape[1], labels_shape[2]])
+
+        bce_loss = tf.losses.sigmoid_cross_entropy(labels, logits, weights=weights)
+        lov_loss = lovasz.lovasz_hinge(logits, labels)
+
+        return (bce_loss + lov_loss) / 2

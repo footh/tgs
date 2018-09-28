@@ -152,7 +152,7 @@ def build_resnet34(img_input, l2_weight_decay=0.01, is_training=True, prefix='')
 
     with tf.variable_scope('resnet34'):
         # Begin initial conv block
-        conv = conv2d_bn(img_input, 64, kernel=7, strides=2, regularizer=regularizer, training=is_training)
+        conv = conv2d_bn(img_input, 64, kernel=7, strides=1, regularizer=regularizer, training=is_training)
         end = tf.layers.max_pooling2d(conv, 3, strides=2, padding='same')
 
         # Begin first block (3 sub-blocks)
