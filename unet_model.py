@@ -647,36 +647,36 @@ class Simple34Unet(model.BaseModel):
         # root_sizex512
         net = self.conv2d_bn(ds_layers[4], root_channels, regularizer=regularizer, training=training)
         net = self.conv2d_bn(net, root_channels // 2, regularizer=regularizer, training=training)
-        net = tf.add((self.channel_gate(net, root_channels // 2, regularizer=regularizer),
-                      self.spatial_gate(net, regularizer=regularizer)))
+        net = tf.add(self.channel_gate(net, root_channels // 2, regularizer=regularizer),
+                     self.spatial_gate(net, regularizer=regularizer))
 
         net = tf.image.resize_bilinear(net, (root_size * 2, root_size * 2), align_corners=True)
         net = tf.concat((ds_layers[3], net), axis=-1)
         net = self.conv2d_bn(net, root_channels // 2, regularizer=regularizer, training=training)
         net = self.conv2d_bn(net, root_channels // 4, regularizer=regularizer, training=training)
-        net = tf.add((self.channel_gate(net, root_channels // 4, regularizer=regularizer),
-                      self.spatial_gate(net, regularizer=regularizer)))
+        net = tf.add(self.channel_gate(net, root_channels // 4, regularizer=regularizer),
+                     self.spatial_gate(net, regularizer=regularizer))
 
         net = tf.image.resize_bilinear(net, (root_size * 4, root_size * 4), align_corners=True)
         net = tf.concat((ds_layers[2], net), axis=-1)
         net = self.conv2d_bn(net, root_channels // 4, regularizer=regularizer, training=training)
         net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
-        net = tf.add((self.channel_gate(net, root_channels // 8, regularizer=regularizer),
-                      self.spatial_gate(net, regularizer=regularizer)))
+        net = tf.add(self.channel_gate(net, root_channels // 8, regularizer=regularizer),
+                     self.spatial_gate(net, regularizer=regularizer))
 
         net = tf.image.resize_bilinear(net, (root_size * 8, root_size * 8), align_corners=True)
         net = tf.concat((ds_layers[1], net), axis=-1)
         net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
         net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
-        net = tf.add((self.channel_gate(net, root_channels // 8, regularizer=regularizer),
-                      self.spatial_gate(net, regularizer=regularizer)))
+        net = tf.add(self.channel_gate(net, root_channels // 8, regularizer=regularizer),
+                     self.spatial_gate(net, regularizer=regularizer))
 
         net = tf.image.resize_bilinear(net, (root_size * 16, root_size * 16), align_corners=True)
         net = tf.concat((ds_layers[0], net), axis=-1)
         net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
         net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
-        net = tf.add((self.channel_gate(net, root_channels // 8, regularizer=regularizer),
-                      self.spatial_gate(net, regularizer=regularizer)))
+        net = tf.add(self.channel_gate(net, root_channels // 8, regularizer=regularizer),
+                     self.spatial_gate(net, regularizer=regularizer))
 
         net = self.conv2d_bn(net, root_channels // 8, kernel=1, regularizer=regularizer, training=training)
         logits = tf.layers.conv2d(net, 1, 1, kernel_regularizer=regularizer)
@@ -702,28 +702,37 @@ class Simple34Unet(model.BaseModel):
         net = tf.concat((net, ds_layers[4]), axis=-1)
         net = self.conv2d_bn(net, root_channels, regularizer=regularizer, training=training)
         d5 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+        d5 = tf.add(self.channel_gate(d5, hyper_channels, regularizer=regularizer),
+                    self.spatial_gate(d5, regularizer=regularizer))
 
         net = tf.image.resize_bilinear(d5, (root_size * 2, root_size * 2), align_corners=True)
         net = tf.concat((net, ds_layers[3]), axis=-1)
         net = self.conv2d_bn(net, root_channels // 2, regularizer=regularizer, training=training)
         d4 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+        d4 = tf.add(self.channel_gate(d4, hyper_channels, regularizer=regularizer),
+                    self.spatial_gate(d4, regularizer=regularizer))
 
         net = tf.image.resize_bilinear(d4, (root_size * 4, root_size * 4), align_corners=True)
         net = tf.concat((net, ds_layers[2]), axis=-1)
         net = self.conv2d_bn(net, root_channels // 4, regularizer=regularizer, training=training)
         d3 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+        d3 = tf.add(self.channel_gate(d3, hyper_channels, regularizer=regularizer),
+                    self.spatial_gate(d3, regularizer=regularizer))
 
         net = tf.image.resize_bilinear(d3, (root_size * 8, root_size * 8), align_corners=True)
         net = tf.concat((net, ds_layers[1]), axis=-1)
         net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
         d2 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+        d2 = tf.add(self.channel_gate(d2, hyper_channels, regularizer=regularizer),
+                    self.spatial_gate(d2, regularizer=regularizer))
 
         net = tf.image.resize_bilinear(d2, (root_size * 16, root_size * 16), align_corners=True)
         # Why not concat with ds_layers[0] here? Heng example doesn't use it, but perhaps it should
         # Also, should this be reduced to 32? Again, just following the example
         net = self.conv2d_bn(net, root_channels // 16, regularizer=regularizer, training=training)
         d1 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
-        # Each one of these d* variables use those spatial and channel blocks. Need to figure out what those are.
+        d1 = tf.add(self.channel_gate(d1, hyper_channels, regularizer=regularizer),
+                    self.spatial_gate(d1, regularizer=regularizer))
 
         # hypercolumn
         d2 = tf.image.resize_bilinear(d2, (root_size * 16, root_size * 16), align_corners=True)
@@ -736,6 +745,7 @@ class Simple34Unet(model.BaseModel):
 
         # In Heng example, this doesn't have the batch norm. Maybe a mistake on his part. Think it's ok to keep.
         net = self.conv2d_bn(net, root_channels // 8, kernel=3, regularizer=regularizer, training=training)
+        # net = tf.layers.conv2d(net, root_channels // 8, 3, activation=tf.nn.relu, padding='same', kernel_regularizer=regularizer)
         logits = tf.layers.conv2d(net, 1, 1, kernel_regularizer=regularizer)
 
         return logits
@@ -753,7 +763,7 @@ class Simple34Unet(model.BaseModel):
                                                prefix=f'{self.name}/encode/')
 
         with tf.variable_scope('decode'):
-            logits = self.upsample(ds_layers, regularizer=regularizer, training=training)
+            logits = self.upsample_hyper(ds_layers, regularizer=regularizer, training=training)
 
             logits = tf.squeeze(logits, axis=-1)
 
