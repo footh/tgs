@@ -69,6 +69,31 @@ class BaseModel(object):
         return tf.reduce_mean(cross_entropy_loss)
 
     @staticmethod
+    def dice_loss(labels, logits, smooth=1.):
+        """
+        DICE loss for binary classification
+        """
+        predictions = tf.nn.sigmoid(logits)
+        intersection = tf.reduce_sum(tf.multiply(labels, predictions))
+
+        loss = ((2. * intersection + smooth) / (tf.reduce_sum(labels) + tf.reduce_sum(logits) + smooth))
+
+        return 1. - loss
+
+    @staticmethod
+    def focal_loss(labels, logits, gamma=2, alpha=0.75, eps=1e-6):
+        preds = tf.nn.sigmoid(logits)
+        preds = tf.clip_by_value(preds, eps, 1. - eps)
+
+        pt1 = tf.where(tf.equal(labels, 1.), preds, tf.ones_like(preds))
+        pt0 = tf.where(tf.equal(labels, 0.), preds, tf.zeros_like(preds))
+
+        pt1 = -1. * (alpha * tf.pow(1. - pt1, gamma) * tf.log(pt1))
+        pt0 = 1. * ((1 - alpha) * tf.pow(pt0, gamma) * tf.log(1. - pt0))
+
+        return tf.reduce_mean(pt1 - pt0)
+
+    @staticmethod
     def clip_gradient_norms(grads_and_vars, max_norm):
         clipped_grads_and_vars = []
         for grad, var in grads_and_vars:

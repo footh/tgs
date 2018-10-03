@@ -786,7 +786,20 @@ class Simple34Unet(model.BaseModel):
             labels_shape = tf.shape(labels)
             weights = tf.tile(weights, [1, labels_shape[1], labels_shape[2]])
 
-        bce_loss = tf.losses.sigmoid_cross_entropy(labels, logits, weights=weights)
-        lov_loss = lovasz.lovasz_hinge(logits, labels)
+        loss_method = None
+        if 'loss_method' in self.config_dict['ext'] and self.config_dict['ext']['loss_method'] is not None:
+            loss_method = self.config_dict['ext']['loss_method']
 
-        return (bce_loss + lov_loss) / 2
+        if loss_method == 'focal':
+            tf.logging.info(f'Using focal loss..')
+            loss = self.focal_loss(labels, logits)
+        elif loss_method == 'lovasz':
+            tf.logging.info(f'Using lovasz loss..')
+            loss = lovasz.lovasz_hinge(logits, labels)
+        else:
+            tf.logging.info(f'Using BCE/lovasz average loss..')
+            bce_loss = tf.losses.sigmoid_cross_entropy(labels, logits, weights=weights)
+            lov_loss = lovasz.lovasz_hinge(logits, labels)
+            loss = (bce_loss + lov_loss) / 2
+
+        return loss
