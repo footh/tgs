@@ -1,0 +1,54 @@
+# Model parameters -----------------------------------
+model:
+  label_cnt: 1
+  class: 'Simple34DSUnet'
+  ext:
+    img_size: 128
+    encoder_l2_decay: 0.0001
+# Metric parameters ----------------------------------
+metric:
+  map_iou:
+    thresholds: [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+    pred_thresh: 0.5
+# Data parameters ------------------------------------
+data:
+  class: 'ImageDataInput'
+  train_file_pattern: ['./tgs/data/train/tfrecord/tgs*']
+  valid_file_pattern: ['./tgs/data/valid/tfrecord/tgs*']
+  test_file_pattern: ['./tgs/data/test/tfrecord/tgs*']
+  shuf_buf: 13600
+  parallel_calls: 4
+  ext:
+    resize_dim: 128
+    resize_method: 'pad'
+    min_padding: 5
+    preprocess: 'tvision'
+# Base training parameters ---------------------------
+batch_size: 15
+train_steps: 20000
+valid_steps: 40
+learning_rate:
+  base: 0.001
+#  exponential_decay:
+#    decay_steps: 800
+#    decay: 0.8
+#  cosine_decay:
+#    steps: 6000
+#    m_mul: 0.65
+#    alpha: 0.01
+l2_weight_decay: 0.0001
+l2_normalize:
+optimizer:
+  adam:
+    epsilon: 0.0001
+clip_grad_norm:
+reduce_grad: ['resnet34', 0.1]
+ema_decay:
+log_steps: 10
+checkpoint:
+  save_steps: 300
+  keep: 80
+  warm_start:
+    checkpoint_path: './tgs/training-runs/init/resnet34/resnet34'
+    var_map: './tgs/training-runs/init/resnet34/resnet34-sdsunet.json'
+    var_init: '.*resnet34.*'

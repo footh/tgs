@@ -803,3 +803,166 @@ class Simple34Unet(model.BaseModel):
             loss = (bce_loss + lov_loss) / 2
 
         return loss
+
+
+class Simple34DSUnet(model.BaseModel):
+    """
+        Unet model that captures common functionality for upsampling
+    """
+
+    def __init__(self, config_dict, name=None):
+        super().__init__(config_dict)
+        assert 'img_size' in config_dict['ext'].keys(), "img_size must be provided"
+        assert 'encoder_l2_decay' in config_dict['ext'].keys(), "encoder_l2_decay must be provided"
+
+        self.name = 'simple34ds_unet' if name is None else name
+
+    @staticmethod
+    def channel_gate(inp, channels, regularizer=None):
+        net = tf.reduce_mean(inp, axis=(1, 2))
+
+        net = tf.layers.dense(net, channels // 2, activation=tf.nn.relu, kernel_regularizer=regularizer)
+        net = tf.layers.dense(net, channels, activation=tf.nn.sigmoid, kernel_regularizer=regularizer)
+        net = tf.expand_dims(net, 1)
+        net = tf.expand_dims(net, 1)
+
+        net = tf.multiply(inp, net)
+
+        return net
+
+    @staticmethod
+    def spatial_gate(inp, regularizer=None):
+        net = tf.layers.conv2d(inp, 1, 1, activation=tf.nn.sigmoid, kernel_regularizer=regularizer)
+        net = tf.multiply(inp, net)
+
+        return net
+
+    def upsample_hyper(self, ds_layers, regularizer=None, training=True):
+        """
+            Decoder
+        """
+        assert(len(ds_layers) == 5)
+
+        root_size = self.config_dict['ext']['img_size'] // (2 ** 4)
+
+        root_channels = 512
+        hyper_channels = 64
+
+        center = self.conv2d_bn(ds_layers[4], root_channels, regularizer=regularizer, training=training)
+        center = self.conv2d_bn(center, root_channels // 2, regularizer=regularizer, training=training)
+        center = tf.layers.max_pooling2d(center, 2, 2, padding='same')
+
+        net = tf.image.resize_bilinear(center, (root_size, root_size), align_corners=True)
+        net = tf.concat((net, ds_layers[4]), axis=-1)
+        net = self.conv2d_bn(net, root_channels, regularizer=regularizer, training=training)
+        d5 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+        d5 = tf.add(self.channel_gate(d5, hyper_channels, regularizer=regularizer),
+                    self.spatial_gate(d5, regularizer=regularizer))
+
+        net = tf.image.resize_bilinear(d5, (root_size * 2, root_size * 2), align_corners=True)
+        net = tf.concat((net, ds_layers[3]), axis=-1)
+        net = self.conv2d_bn(net, root_channels // 2, regularizer=regularizer, training=training)
+        d4 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+        d4 = tf.add(self.channel_gate(d4, hyper_channels, regularizer=regularizer),
+                    self.spatial_gate(d4, regularizer=regularizer))
+
+        net = tf.image.resize_bilinear(d4, (root_size * 4, root_size * 4), align_corners=True)
+        net = tf.concat((net, ds_layers[2]), axis=-1)
+        net = self.conv2d_bn(net, root_channels // 4, regularizer=regularizer, training=training)
+        d3 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+        d3 = tf.add(self.channel_gate(d3, hyper_channels, regularizer=regularizer),
+                    self.spatial_gate(d3, regularizer=regularizer))
+
+        net = tf.image.resize_bilinear(d3, (root_size * 8, root_size * 8), align_corners=True)
+        net = tf.concat((net, ds_layers[1]), axis=-1)
+        net = self.conv2d_bn(net, root_channels // 8, regularizer=regularizer, training=training)
+        d2 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+        d2 = tf.add(self.channel_gate(d2, hyper_channels, regularizer=regularizer),
+                    self.spatial_gate(d2, regularizer=regularizer))
+
+        net = tf.image.resize_bilinear(d2, (root_size * 16, root_size * 16), align_corners=True)
+        # Why not concat with ds_layers[0] here? Heng example doesn't use it, but perhaps it should
+        # Also, should this be reduced to 32? Again, just following the example
+        net = self.conv2d_bn(net, root_channels // 16, regularizer=regularizer, training=training)
+        d1 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
+        d1 = tf.add(self.channel_gate(d1, hyper_channels, regularizer=regularizer),
+                    self.spatial_gate(d1, regularizer=regularizer))
+
+        # hypercolumn
+        d2 = tf.image.resize_bilinear(d2, (root_size * 16, root_size * 16), align_corners=True)
+        d3 = tf.image.resize_bilinear(d3, (root_size * 16, root_size * 16), align_corners=True)
+        d4 = tf.image.resize_bilinear(d4, (root_size * 16, root_size * 16), align_corners=True)
+        d5 = tf.image.resize_bilinear(d5, (root_size * 16, root_size * 16), align_corners=True)
+        net = tf.concat((d1, d2, d3, d4, d5), axis=-1)
+        # net = tf.layers.dropout(net, rate=0.5, training=training)
+
+        # For pixel classifier
+        fuse_pixel = tf.layers.conv2d(net, root_channels // 8, 3, activation=tf.nn.relu,
+                                      padding='same', kernel_regularizer=regularizer)
+        logits_pixel = tf.layers.conv2d(fuse_pixel, 1, 1, kernel_regularizer=regularizer)
+        logits_pixel = tf.squeeze(logits_pixel, axis=-1)
+
+        # For image classifier
+        img = tf.reduce_mean(ds_layers[4], axis=(1, 2))
+        # img = tf.layers.dropout(img, rate=0.5, training=training)
+        fuse_img = tf.layers.dense(img, root_channels // 8, activation=tf.nn.relu, kernel_regularizer=regularizer)
+        logits_img = tf.layers.dense(fuse_img, 1, kernel_regularizer=regularizer)
+
+        # For final
+        fuse_img = tf.expand_dims(fuse_img, 1)
+        fuse_img = tf.expand_dims(fuse_img, 1)
+        fuse_img = tf.image.resize_nearest_neighbor(fuse_img, (root_size * 16, root_size * 16))
+        net = tf.concat((fuse_pixel, fuse_img), axis=-1)
+
+        # net = tf.layers.conv2d(net, root_channels // 8, 3, activation=tf.nn.relu,
+        #                        padding='same', kernel_regularizer=regularizer)
+        logits = tf.layers.conv2d(net, 1, 1, kernel_regularizer=regularizer)
+        logits = tf.squeeze(logits, axis=-1)
+
+        return logits, logits_pixel, logits_img
+
+    def build_model(self, inp, mode, regularizer=None):
+
+        net = inp['img']
+
+        training = (mode == tf.estimator.ModeKeys.TRAIN)
+
+        with tf.variable_scope('encode'):
+            ds_layers = encoder.build_resnet34(net,
+                                               l2_weight_decay=self.config_dict['ext']['encoder_l2_decay'],
+                                               is_training=training,
+                                               prefix=f'{self.name}/encode/')
+
+        with tf.variable_scope('decode'):
+            logits = self.upsample_hyper(ds_layers, regularizer=regularizer, training=training)
+
+        return logits
+
+    def logits_to_probs(self, logits):
+        return tf.nn.sigmoid(logits[0])
+
+    def loss_op(self, labels, logits):
+        logits_main, logits_pixel, logits_img = logits
+
+        # Main loss is performed on both zero and non-zero masks
+        loss_main = lovasz.lovasz_hinge(logits_main, labels)
+
+        nonzero_labels = tf.greater(tf.reduce_sum(labels, axis=(1, 2)), 0)
+        nonzero_labels = tf.cast(nonzero_labels, tf.float32)
+        nonzero_labels = tf.expand_dims(nonzero_labels, axis=-1)
+
+        weights_nonzero = tf.expand_dims(nonzero_labels, axis=-1)
+        labels_shape = tf.shape(labels)
+        weights_nonzero = tf.tile(weights_nonzero, [1, labels_shape[1], labels_shape[2]])
+        # This will set the zero mask logits to zero so it doesn't contribute to the loss
+        logits_pixel = tf.multiply(logits_pixel, weights_nonzero)
+        # Pixel level loss is performed on just the non-zero masks
+        loss_pixel = lovasz.lovasz_hinge(logits_pixel, labels)
+
+        # Image classification loss
+        loss_img = tf.losses.sigmoid_cross_entropy(nonzero_labels, logits_img)
+
+        loss = loss_main + 0.5 * loss_pixel + 0.05 * loss_img
+
+        return loss
+
