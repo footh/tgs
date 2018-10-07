@@ -848,6 +848,8 @@ class Simple34DSUnet(model.BaseModel):
         root_channels = 512
         hyper_channels = 64
 
+        logits_pixel = []
+
         center = self.conv2d_bn(ds_layers[4], root_channels, regularizer=regularizer, training=training)
         center = self.conv2d_bn(center, root_channels // 2, regularizer=regularizer, training=training)
         center = tf.layers.max_pooling2d(center, 2, 2, padding='same')
@@ -858,6 +860,7 @@ class Simple34DSUnet(model.BaseModel):
         d5 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
         d5 = tf.add(self.channel_gate(d5, hyper_channels, regularizer=regularizer),
                     self.spatial_gate(d5, regularizer=regularizer))
+        logits_pixel.append(tf.squeeze(tf.layers.conv2d(d5, 1, 1, kernel_regularizer=regularizer), axis=-1))
 
         net = tf.image.resize_bilinear(d5, (root_size * 2, root_size * 2), align_corners=True)
         net = tf.concat((net, ds_layers[3]), axis=-1)
@@ -865,6 +868,7 @@ class Simple34DSUnet(model.BaseModel):
         d4 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
         d4 = tf.add(self.channel_gate(d4, hyper_channels, regularizer=regularizer),
                     self.spatial_gate(d4, regularizer=regularizer))
+        logits_pixel.append(tf.squeeze(tf.layers.conv2d(d4, 1, 1, kernel_regularizer=regularizer), axis=-1))
 
         net = tf.image.resize_bilinear(d4, (root_size * 4, root_size * 4), align_corners=True)
         net = tf.concat((net, ds_layers[2]), axis=-1)
@@ -872,6 +876,7 @@ class Simple34DSUnet(model.BaseModel):
         d3 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
         d3 = tf.add(self.channel_gate(d3, hyper_channels, regularizer=regularizer),
                     self.spatial_gate(d3, regularizer=regularizer))
+        logits_pixel.append(tf.squeeze(tf.layers.conv2d(d3, 1, 1, kernel_regularizer=regularizer), axis=-1))
 
         net = tf.image.resize_bilinear(d3, (root_size * 8, root_size * 8), align_corners=True)
         net = tf.concat((net, ds_layers[1]), axis=-1)
@@ -879,6 +884,7 @@ class Simple34DSUnet(model.BaseModel):
         d2 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
         d2 = tf.add(self.channel_gate(d2, hyper_channels, regularizer=regularizer),
                     self.spatial_gate(d2, regularizer=regularizer))
+        logits_pixel.append(tf.squeeze(tf.layers.conv2d(d2, 1, 1, kernel_regularizer=regularizer), axis=-1))
 
         net = tf.image.resize_bilinear(d2, (root_size * 16, root_size * 16), align_corners=True)
         # Why not concat with ds_layers[0] here? Heng example doesn't use it, but perhaps it should
@@ -887,6 +893,7 @@ class Simple34DSUnet(model.BaseModel):
         d1 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
         d1 = tf.add(self.channel_gate(d1, hyper_channels, regularizer=regularizer),
                     self.spatial_gate(d1, regularizer=regularizer))
+        logits_pixel.append(tf.squeeze(tf.layers.conv2d(d1, 1, 1, kernel_regularizer=regularizer), axis=-1))
 
         # hypercolumn
         d2 = tf.image.resize_bilinear(d2, (root_size * 16, root_size * 16), align_corners=True)
@@ -899,8 +906,8 @@ class Simple34DSUnet(model.BaseModel):
         # For pixel classifier
         fuse_pixel = tf.layers.conv2d(net, root_channels // 8, 3, activation=tf.nn.relu,
                                       padding='same', kernel_regularizer=regularizer)
-        logits_pixel = tf.layers.conv2d(fuse_pixel, 1, 1, kernel_regularizer=regularizer)
-        logits_pixel = tf.squeeze(logits_pixel, axis=-1)
+        # logits_pixel = tf.layers.conv2d(fuse_pixel, 1, 1, kernel_regularizer=regularizer)
+        # logits_pixel = tf.squeeze(logits_pixel, axis=-1)
 
         # For image classifier
         img = tf.reduce_mean(ds_layers[4], axis=(1, 2))
@@ -914,8 +921,8 @@ class Simple34DSUnet(model.BaseModel):
         fuse_img = tf.image.resize_nearest_neighbor(fuse_img, (root_size * 16, root_size * 16))
         net = tf.concat((fuse_pixel, fuse_img), axis=-1)
 
-        # net = tf.layers.conv2d(net, root_channels // 8, 3, activation=tf.nn.relu,
-        #                        padding='same', kernel_regularizer=regularizer)
+        net = tf.layers.conv2d(net, root_channels // 8, 3, activation=tf.nn.relu,
+                               padding='same', kernel_regularizer=regularizer)
         logits = tf.layers.conv2d(net, 1, 1, kernel_regularizer=regularizer)
         logits = tf.squeeze(logits, axis=-1)
 
@@ -950,14 +957,15 @@ class Simple34DSUnet(model.BaseModel):
         nonzero_labels = tf.greater(tf.reduce_sum(labels, axis=(1, 2)), 0)
         nonzero_labels = tf.cast(nonzero_labels, tf.float32)
         nonzero_labels = tf.expand_dims(nonzero_labels, axis=-1)
-
-        weights_nonzero = tf.expand_dims(nonzero_labels, axis=-1)
-        labels_shape = tf.shape(labels)
-        weights_nonzero = tf.tile(weights_nonzero, [1, labels_shape[1], labels_shape[2]])
+        # weights_nonzero = tf.expand_dims(nonzero_labels, axis=-1)
+        # labels_shape = tf.shape(labels)
+        # weights_nonzero = tf.tile(weights_nonzero, [1, labels_shape[1], labels_shape[2]])
         # This will set the zero mask logits to zero so it doesn't contribute to the loss
-        logits_pixel = tf.multiply(logits_pixel, weights_nonzero)
+        # logits_pixel = tf.multiply(logits_pixel, weights_nonzero)
         # Pixel level loss is performed on just the non-zero masks
-        loss_pixel = lovasz.lovasz_hinge(logits_pixel, labels)
+        # loss_pixel = lovasz.lovasz_hinge(logits_pixel, labels)
+        # loss_pixel = tf.losses.sigmoid_cross_entropy(labels, logits_pixel, weights=weights_nonzero)
+        loss_pixel = self.loss_pixel(labels, logits_pixel, nonzero_labels)
 
         # Image classification loss
         loss_img = tf.losses.sigmoid_cross_entropy(nonzero_labels, logits_img)
@@ -966,3 +974,24 @@ class Simple34DSUnet(model.BaseModel):
 
         return loss
 
+    @staticmethod
+    def loss_pixel(labels, logits, nonzero_labels):
+        nonzero_labels = tf.expand_dims(nonzero_labels, axis=-1)
+
+        size = len(logits)
+        loss = tf.constant(0, tf.float32)
+        for i, lg in enumerate(logits):
+            tf.logging.info(lg.shape.as_list())
+            s = tf.shape(lg)[1:3]
+            lb = tf.expand_dims(labels, axis=-1)
+            lb = tf.image.resize_bilinear(lb, s, align_corners=True)
+            lb = tf.squeeze(lb, axis=-1)
+            lb = tf.cast(tf.greater(lb, 0.5), tf.float32)
+
+            weights = tf.tile(nonzero_labels, [1, s[0], s[1]])
+
+            bce_loss = tf.losses.sigmoid_cross_entropy(lb, lg, weights=weights)
+
+            loss = loss + (bce_loss / size)
+
+        return loss
