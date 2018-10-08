@@ -195,8 +195,8 @@ def main(_):
 
     estimator = build_estimator(cfg, FLAGS.model_dir)
 
-    # train_and_eval(cfg, dataset, estimator)
-    train(cfg, dataset, estimator)
+    train_and_eval(cfg, dataset, estimator)
+    # train(cfg, dataset, estimator)
 
 
 tf.app.flags.DEFINE_string(

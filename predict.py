@@ -16,7 +16,7 @@ SUBMISSION_DIR = 'submission'
 IDS_FILE = 'ids-test.npy'
 # TODO: parameterize these
 IMG_DIM = 101
-SIZE = 20
+SIZE = None
 
 
 # Run-length encoding taken from https://www.kaggle.com/rakhlin/fast-run-length-encoding-python
