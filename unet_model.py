@@ -892,8 +892,7 @@ class Simple34DSUnet(model.BaseModel):
         logits_pixel.append(tf.squeeze(tf.layers.conv2d(d2, 1, 1, kernel_regularizer=regularizer), axis=-1))
 
         net = tf.image.resize_bilinear(d2, (root_size * 16, root_size * 16), align_corners=True)
-        # Why not concat with ds_layers[0] here? Heng example doesn't use it, but perhaps it should
-        # Also, should this be reduced to 32? Again, just following the example
+        net = tf.concat((net, ds_layers[0]), axis=-1)
         net = self.conv2d_bn(net, root_channels // 16, regularizer=regularizer, training=training)
         d1 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
         # d1 = tf.add(self.channel_gate(d1, hyper_channels, regularizer=regularizer),

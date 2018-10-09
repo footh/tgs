@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tgs import metric
 import numpy as np
+import amsgrad
 
 
 class BaseModel(object):
@@ -251,7 +252,9 @@ class BaseModel(object):
                 logging_hook = tf.train.LoggingTensorHook(log_hook_map, every_n_iter=10)
 
                 adam_epsilon = 1e-8 if params['adam_epsilon'] is None else params['adam_epsilon']
-                optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, epsilon=adam_epsilon)
+                # optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, epsilon=adam_epsilon)
+                # optimizer = tf.contrib.opt.AdamWOptimizer(0.0001, learning_rate=learning_rate, epsilon=adam_epsilon)
+                optimizer = amsgrad.AMSGrad(learning_rate=learning_rate, epsilon=adam_epsilon)
 
                 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
                 with tf.control_dependencies(update_ops):
