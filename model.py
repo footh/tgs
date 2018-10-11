@@ -221,6 +221,7 @@ class BaseModel(object):
                     learning_rate = tf.train.cosine_decay_restarts(lr,
                                                                    global_step,
                                                                    params['learning_rate.cosine_decay']['steps'],
+                                                                   t_mul=1.0,
                                                                    m_mul=params['learning_rate.cosine_decay']['m_mul'],
                                                                    alpha=params['learning_rate.cosine_decay']['alpha'])
                 elif params['learning_rate.exponential_decay'] is not None:

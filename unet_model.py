@@ -860,7 +860,7 @@ class Simple34DSUnet(model.BaseModel):
         d5 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
         # d5 = tf.add(self.channel_gate(d5, hyper_channels, regularizer=regularizer),
         #             self.spatial_gate(d5, regularizer=regularizer))
-        d5 = self.channel_gate(d5, hyper_channels, regularizer=regularizer)
+        # d5 = self.channel_gate(d5, hyper_channels, regularizer=regularizer)
 
         logits_pixel.append(tf.squeeze(tf.layers.conv2d(d5, 1, 1, kernel_regularizer=regularizer), axis=-1))
 
@@ -870,7 +870,7 @@ class Simple34DSUnet(model.BaseModel):
         d4 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
         # d4 = tf.add(self.channel_gate(d4, hyper_channels, regularizer=regularizer),
         #             self.spatial_gate(d4, regularizer=regularizer))
-        d4 = self.channel_gate(d4, hyper_channels, regularizer=regularizer)
+        # d4 = self.channel_gate(d4, hyper_channels, regularizer=regularizer)
         logits_pixel.append(tf.squeeze(tf.layers.conv2d(d4, 1, 1, kernel_regularizer=regularizer), axis=-1))
 
         net = tf.image.resize_bilinear(d4, (root_size * 4, root_size * 4), align_corners=True)
@@ -879,7 +879,7 @@ class Simple34DSUnet(model.BaseModel):
         d3 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
         # d3 = tf.add(self.channel_gate(d3, hyper_channels, regularizer=regularizer),
         #             self.spatial_gate(d3, regularizer=regularizer))
-        d3 = self.channel_gate(d3, hyper_channels, regularizer=regularizer)
+        # d3 = self.channel_gate(d3, hyper_channels, regularizer=regularizer)
         logits_pixel.append(tf.squeeze(tf.layers.conv2d(d3, 1, 1, kernel_regularizer=regularizer), axis=-1))
 
         net = tf.image.resize_bilinear(d3, (root_size * 8, root_size * 8), align_corners=True)
@@ -888,7 +888,7 @@ class Simple34DSUnet(model.BaseModel):
         d2 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
         # d2 = tf.add(self.channel_gate(d2, hyper_channels, regularizer=regularizer),
         #             self.spatial_gate(d2, regularizer=regularizer))
-        d2 = self.channel_gate(d2, hyper_channels, regularizer=regularizer)
+        # d2 = self.channel_gate(d2, hyper_channels, regularizer=regularizer)
         logits_pixel.append(tf.squeeze(tf.layers.conv2d(d2, 1, 1, kernel_regularizer=regularizer), axis=-1))
 
         net = tf.image.resize_bilinear(d2, (root_size * 16, root_size * 16), align_corners=True)
@@ -897,7 +897,7 @@ class Simple34DSUnet(model.BaseModel):
         d1 = self.conv2d_bn(net, hyper_channels, regularizer=regularizer, training=training)
         # d1 = tf.add(self.channel_gate(d1, hyper_channels, regularizer=regularizer),
         #             self.spatial_gate(d1, regularizer=regularizer))
-        d1 = self.channel_gate(d1, hyper_channels, regularizer=regularizer)
+        # d1 = self.channel_gate(d1, hyper_channels, regularizer=regularizer)
         logits_pixel.append(tf.squeeze(tf.layers.conv2d(d1, 1, 1, kernel_regularizer=regularizer), axis=-1))
 
         # hypercolumn
