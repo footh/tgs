@@ -957,7 +957,11 @@ class Simple34DSUnet(model.BaseModel):
         logits_main, logits_pixel, logits_img = logits
 
         # Main loss is performed on both zero and non-zero masks
-        loss_main = lovasz.lovasz_hinge(logits_main, labels)
+        loss_main_lov = lovasz.lovasz_hinge(logits_main, labels)
+        loss_main_bce = tf.losses.sigmoid_cross_entropy(labels, logits_main)
+        # loss_main = lovasz.lovasz_hinge(logits_main, labels)
+        # loss_main = tf.losses.sigmoid_cross_entropy(labels, logits_main)
+        loss_main = (loss_main_lov + loss_main_bce) / 2.
 
         nonzero_labels = tf.greater(tf.reduce_sum(labels, axis=(1, 2)), 0)
         nonzero_labels = tf.cast(nonzero_labels, tf.float32)
@@ -990,6 +994,12 @@ class Simple34DSUnet(model.BaseModel):
 
             bce_loss = tf.losses.sigmoid_cross_entropy(lb, lg, weights=weights)
 
-            loss = loss + (bce_loss / size)
+            lg = tf.multiply(lg, weights)
+            lov_loss = lovasz.lovasz_hinge(lg, lb)
+
+            # loss = loss + (bce_loss / size)
+            # loss = loss + (lov_loss / size)
+            loss = loss + ((lov_loss + bce_loss) / size * 2.)
+
 
         return loss
