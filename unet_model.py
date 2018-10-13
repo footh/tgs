@@ -1001,5 +1001,4 @@ class Simple34DSUnet(model.BaseModel):
             # loss = loss + (lov_loss / size)
             loss = loss + ((lov_loss + bce_loss) / size * 2.)
 
-
         return loss
