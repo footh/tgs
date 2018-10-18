@@ -76,42 +76,46 @@ class GatedFRefineUnet(model.BaseModel):
 
         M4 = self.gate_unit(ds_layers[0], ds_layers[1], gate_channels // 8, regularizer=regularizer, training=training)
         PmRU4 = self.gated_refinement_unit(PmRU3, M4, regularizer=regularizer, training=training)
-
-        # PmRU4 = tf.image.resize_bilinear(PmRU4, (img_size, img_size), align_corners=True)
-        PmRU4 = tf.layers.conv2d_transpose(PmRU4, 1, 4, 2, padding='same', kernel_regularizer=regularizer)
-
         logits.append(tf.squeeze(PmRU4, axis=-1))
 
         return logits[::-1]
 
-    def upsample2(self, ds_layers, regularizer=None, training=True):
+    def upsample_center(self, ds_layers, regularizer=None, training=True):
         """
             Decoder
         """
-        assert(len(ds_layers) == 4)
+        assert(len(ds_layers) == 5)
         img_size = self.config_dict['ext']['img_size']
         gate_channels = self.config_dict['ext']['gate_channels']
 
         logits = []
 
-        # Coarse prediction
-        PmG = tf.layers.conv2d(ds_layers[3], 1, 3, padding='same', kernel_regularizer=regularizer)
-        logits.append(tf.squeeze(PmG, axis=-1))
+        center = self.conv2d_bn(ds_layers[4], 512, regularizer=regularizer, training=training)
+        center = self.conv2d_bn(center, 256, regularizer=regularizer, training=training)
+        center = tf.layers.max_pooling2d(center, 2, 2, padding='same')
 
-        M1 = self.gate_unit(ds_layers[2], ds_layers[3], gate_channels, regularizer=regularizer, training=training)
+        PmG = tf.layers.conv2d(center, 1, 3, padding='same', kernel_regularizer=regularizer)
+        # logits.append(tf.squeeze(PmG, axis=-1))
+
+        M1 = self.gate_unit(ds_layers[4], center, gate_channels, regularizer=regularizer, training=training)
         PmRU1 = self.gated_refinement_unit(PmG, M1, regularizer=regularizer, training=training)
         logits.append(tf.squeeze(PmRU1, axis=-1))
 
-        M2 = self.gate_unit(ds_layers[1], ds_layers[2], gate_channels // 2, regularizer=regularizer, training=training)
+        M2 = self.gate_unit(ds_layers[3], ds_layers[4], gate_channels, regularizer=regularizer, training=training)
         PmRU2 = self.gated_refinement_unit(PmRU1, M2, regularizer=regularizer, training=training)
         logits.append(tf.squeeze(PmRU2, axis=-1))
 
-        M3 = self.gate_unit(ds_layers[0], ds_layers[1], gate_channels // 4, regularizer=regularizer, training=training)
+        M3 = self.gate_unit(ds_layers[2], ds_layers[3], gate_channels // 2, regularizer=regularizer, training=training)
         PmRU3 = self.gated_refinement_unit(PmRU2, M3, regularizer=regularizer, training=training)
         logits.append(tf.squeeze(PmRU3, axis=-1))
 
-        PmRU3 = tf.image.resize_bilinear(PmRU4, (img_size, img_size), align_corners=True)
-        logits.append(tf.squeeze(PmRU3, axis=-1))
+        M4 = self.gate_unit(ds_layers[1], ds_layers[2], gate_channels // 4, regularizer=regularizer, training=training)
+        PmRU4 = self.gated_refinement_unit(PmRU3, M4, regularizer=regularizer, training=training)
+        logits.append(tf.squeeze(PmRU4, axis=-1))
+
+        M5 = self.gate_unit(ds_layers[0], ds_layers[1], gate_channels // 8, regularizer=regularizer, training=training)
+        PmRU5 = self.gated_refinement_unit(PmRU4, M5, regularizer=regularizer, training=training)
+        logits.append(tf.squeeze(PmRU5, axis=-1))
 
         return logits[::-1]
 
@@ -122,10 +126,10 @@ class GatedFRefineUnet(model.BaseModel):
         training = (mode == tf.estimator.ModeKeys.TRAIN)
 
         with tf.variable_scope('encode'):
-            ds_layers = encoder.build_resnet50_v1(net,
-                                                  l2_weight_decay=self.config_dict['ext']['encoder_l2_decay'],
-                                                  is_training=training,
-                                                  prefix=f'{self.name}/encode/')
+            ds_layers = encoder.build_resnet34(net,
+                                               l2_weight_decay=self.config_dict['ext']['encoder_l2_decay'],
+                                               is_training=training,
+                                               prefix=f'{self.name}/encode/')
 
         with tf.variable_scope('decode'):
             logits = self.upsample(ds_layers, regularizer=regularizer, training=training)
